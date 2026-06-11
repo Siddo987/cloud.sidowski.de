@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // /config/bootstrap.php
 
 // Load environment variables from .env (project root) into getenv/$_ENV/$_SERVER
@@ -13,6 +13,34 @@ if (file_exists($envFile)) {
         $name = trim($name);
         $val = trim($val);
         if ((substr($val, 0, 1) === '"' && substr($val, -1) === '"') || (substr($val, 0, 1) === "'" && substr($val, -1) === "'")) {
+            $val = substr($val, 1, -1);
+        }
+        putenv($name . '=' . $val);
+        $_ENV[$name] = $val;
+        $_SERVER[$name] = $val;
+    }
+}
+
+// Config laden (enthält DEBUG_MODE Definition und DB-Konstanten)
+require_once __DIR__ . '/config.php';
+
+// Fehler-Reporting basierend auf DEBUG_MODE steuern
+if (defined('DEBUG_MODE') && DEBUG_MODE) {
+    ini_set('display_errors', 1);
+    ini_set('display_startup_errors', 1);
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', 0);
+    ini_set('display_startup_errors', 0);
+    error_reporting(E_ALL);
+}
+
+// Zeitzone setzen
+date_default_timezone_set('Europe/Berlin');
+
+// Session starten
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
 // Globale sprachunabhängige Kernfunktionen laden
@@ -197,7 +225,6 @@ if ($is_logged_in && $current_user_id) {
 }
         
         
-        <?php
         // /config/bootstrap.php
 
         // Load environment variables from .env (project root) into getenv/$_ENV/$_SERVER
@@ -485,8 +512,7 @@ if ($is_logged_in && $current_user_id) {
         }
     }
 }
-
-    // Im Debug-Modus: Fehler im Browser anzeigen
+if (DEBUG_MODE) {    // Im Debug-Modus: Fehler im Browser anzeigen
     ini_set('display_errors', 1);         // ANZEIGEN
     ini_set('display_startup_errors', 1); // ANZEIGEN (fÃ¼r Fehler beim PHP-Start)
     error_reporting(E_ALL);               // Alle Fehlertypen melden

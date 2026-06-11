@@ -1,6 +1,6 @@
 <?php
-// /de/create_folder.php
 
+// /de/create_folder.php
 $current_language = 'de';
 require_once __DIR__ . '/../config/bootstrap.php';
 

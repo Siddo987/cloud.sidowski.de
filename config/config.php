@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // /config/config.php
 
 // --- Datenbank Zugangsdaten ---

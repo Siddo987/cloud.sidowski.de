@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // /config/mail_config.php
 
 // SMTP Konfiguration (aus .env / Umgebung)
