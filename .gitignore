@@ -1,0 +1,9 @@
+.env
+*.bak
+*.orig.bak
+*.bak2
+tmp_*.php
+/vendor/
+/.env.local
+/user_uploads/
+*.log

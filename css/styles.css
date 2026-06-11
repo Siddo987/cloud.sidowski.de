@@ -1,0 +1,1468 @@
+/* /css/styles.css */
+/* Basis: Deine zuletzt hochgeladene styles.css */
+/* Ergänzungen für Dropdowns, Button-Alignment, Suche, Upload-Liste etc. */
+/* -> Fokus auf Header/Navi-Formatierung & CSS-Pfeile */
+/* -> FIX: Tabellen-Action-Buttons mit Umbruch */
+/* -> FIX: Vertikale Ausrichtung in Tabellenzeilen (Dashboard, User-Liste) */
+
+/* --- Globale Einstellung --- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* --- Body & Container --- */
+body {
+  font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  width: 95%;
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 0 15px;
+  box-sizing: border-box;
+}
+
+/* --- Header --- */
+header {
+  background-color: var(--header-bg);
+  color: var(--header-text);
+  padding: 10px 0;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  border-bottom: 1px solid var(--header-border);
+  margin-bottom: 2rem;
+  flex-shrink: 0;
+}
+header .container { /* Container im Header */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap; /* Erlaubt Umbruch bei schmalen Bildschirmen */
+  gap: 10px 15px; /* Abstand zwischen Logo und Navi, falls sie umbrechen */
+  margin-top: 0; margin-bottom: 0;
+  padding: 0 15px;
+}
+
+header .logo a {
+  color: var(--header-text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.4em;
+  flex-shrink: 0; /* Verhindert Schrumpfen des Logos */
+}
+
+/* --- Navigation im Header --- */
+header nav {
+  display: flex;
+  align-items: center; /* Wichtig für vertikale Ausrichtung */
+  flex-wrap: wrap; /* Erlaubt Umbruch der Navi-Elemente */
+  gap: 8px 10px; /* Konsistenter Abstand zwischen Navi-Elementen */
+}
+
+/* Basis-Styling für ALLE direkten Elemente in der Navi (Links, Buttons, Dropdowns) */
+header nav > a,
+header nav > .nav-item > .dropdown-toggle, /* Direkter Toggle-Button */
+header nav > form > button { /* Logout Button etc. in Forms */
+  display: inline-flex; /* Wichtig für align-items */
+  align-items: center; /* Vertikal zentrieren */
+  padding: 8px 12px; /* Konsistentes Padding */
+  font-size: 1em; /* Einheitliche Schriftgröße */
+  line-height: 1.5; /* Einheitliche Höhe */
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--header-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  vertical-align: middle; /* Zusätzliche Ausrichtungshilfe */
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+/* Spezifisches Button-Styling in der Nav (z.B. Upload) */
+header nav > .button,
+header nav > form > .button {
+  margin: 0; /* Kein extra Margin, da gap genutzt wird */
+  padding: 8px 15px; /* Evtl. leicht anderes Padding für Buttons */
+  font-size: 0.95em;
+  background-color: var(--button-bg);
+  color: var(--button-text) !important; /* Wichtig wg. Spezifität */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+ header nav > form > .button.button-secondary { /* z.B. Logout */
+     background-color: var(--table-row-even);
+     color: var(--text-secondary) !important;
+     box-shadow: none;
+ }
+
+/* Hover-Effekte */
+header nav > a:hover,
+header nav > .nav-item > .dropdown-toggle:hover,
+header nav > form > button:hover {
+  background-color: rgba(128, 128, 128, 0.1); /* Leichter Hover für alle */
+  opacity: 1;
+}
+ header nav > .button:hover,
+ header nav > form > .button:hover {
+      background-color: var(--button-hover-bg) !important; /* Wichtig wg. Spezifität */
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      transform: translateY(-1px);
+ }
+  header nav > form > .button.button-secondary:hover {
+     background-color: var(--table-row-hover) !important; /* Wichtig wg. Spezifität */
+     transform: none;
+     box-shadow: none;
+}
+
+/* Aktiver Zustand für Links/Buttons */
+header nav > a.active,
+header nav > .nav-item > .dropdown-toggle.active { /* Wenn JS eine 'active' Klasse setzt */
+  /* Beispiel: Leichte Hervorhebung für den aktiven Link/Dropdown */
+   background-color: rgba(128, 128, 128, 0.08);
+   font-weight: 500;
+}
+/* Aktiver Zustand für Buttons */
+header nav > .button.active {
+    background-color: var(--button-hover-bg); /* Dunklere Button-Farbe */
+}
+
+
+/* --- Hauptinhalt & Überschriften --- */
+main.container {
+  flex-grow: 1;
+  padding-top: 0;
+  padding-bottom: 2rem;
+  margin-top: 0;
+  margin-bottom: 0;
+  width: 95%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+h1, h2, h3 {
+  color: var(--h1-color);
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+h1 {
+  font-size: 2em;
+  border-bottom: 1px solid var(--table-border);
+  padding-bottom: 0.5rem;
+  margin-top: 0;
+}
+h2 {
+   font-size: 1.5em;
+   border-bottom: none;
+}
+ h3 {
+   font-size: 1.25em;
+   color: var(--text-secondary);
+   margin-top: 2rem;
+}
+
+/* --- Card Style --- */
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 20px 25px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.card:hover {
+  box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+}
+.card h1, .card h2, .card h3 {
+    margin-top: 0; /* Kein extra Margin für erste Überschrift in Card */
+}
+
+/* --- View Header (own_files) --- */
+.view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.view-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* --- Spezifisches Styling für create_folder Karte --- */
+.create-folder-card {
+  max-width: 620px;
+  margin: 0 auto 20px auto;
+  border: 1px solid var(--card-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.create-folder-card .card-body {
+  padding: 1.25rem;
+}
+
+.create-folder-form .form-group {
+  margin-bottom: 1.5rem;
+}
+.create-folder-form input[type="text"] {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.create-folder-form input[type="text"]:focus {
+  border-color: var(--button-bg);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.btn-large {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.btn-large i {
+  margin-right: 0.5rem;
+}
+
+.auth-card {
+  max-width: 450px;
+  margin: 40px auto; /* Zentriert die Login/Register-Karte */
+  padding: 30px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.auth-icon {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+
+.auth-instructions {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: var(--table-row-even);
+  border-radius: 8px;
+  border: 1px solid var(--table-border);
+}
+
+.instruction-item {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.instruction-item:last-child {
+  margin-bottom: 0;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  font-size: 16px;
+  background: var(--input-bg);
+  color: var(--text-color);
+}
+
+.form-group select {
+  width: 100%;
+  padding: 12px;
+  padding-right: 2.5rem;
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  font-size: 16px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 16px 12px;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--focus-ring-color);
+  box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+/* --- Tabellen --- */
+.table-container { overflow-x: auto; margin-bottom: 20px;}
+table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.95em; }
+
+/* Basis-Stile für th und td - Wichtig für Ausrichtung! */
+th, td {
+    padding: 10px 12px;    /* Konsistentes Padding */
+    text-align: left;
+    border-bottom: 1px solid var(--table-border);
+    vertical-align: middle; /* << WICHTIG: Vertikal mittig ausrichten */
+    line-height: 1.5;       /* << WICHTIG: Konsistente Zeilenhöhe */
+}
+
+th {
+    background-color: var(--table-header-bg);
+    color: var(--table-header-text);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ensure header links inherit color and don't appear blue */
+th a { color: inherit; text-decoration: none; }
+th a:hover { text-decoration: underline; }
+
+/* fixed width for ID column to accommodate arrow */
+th.col-id { width: 8ch; min-width: 8ch; /* widen slightly so arrow doesn’t push it */
+    text-align: left; /* keep header text on left edge */
+    padding-right: 0.5rem; /* small padding to give space when arrow appears */
+}
+
+/* Ende Basis-Stile th, td */
+
+tr:last-child td { border-bottom: none; }
+tr:nth-child(even) { background-color: var(--table-row-even); }
+tr:hover { background-color: var(--table-row-hover); }
+td a { color: var(--link-color); text-decoration: none; }
+td a:hover { text-decoration: underline; }
+
+/* --- Aktionen in Tabellen --- */
+td.actions-cell {
+    text-align: right; /* Fallback */
+    /* white-space: nowrap; <-- Entfernt */
+    display: flex;
+    flex-wrap: wrap;       /* Erlaubt Umbruch */
+    justify-content: flex-end; /* Standard: Rechtsbündig */
+    align-items: center;   /* Vertikal zentriert in der Zelle */
+    gap: 5px 8px;          /* Vertikaler & Horizontaler Abstand */
+}
+
+td.actions-cell form {
+    display: inline-flex;
+    align-items: center; /* Button im Formular zentrieren */
+    margin: 0;
+    padding: 0;
+    vertical-align: middle; /* Formular selbst mittig */
+}
+/* Styling der kleinen Aktionsbuttons */
+.action-button,
+td.actions-cell form button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white !important;
+  border: none;
+  padding: 5px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  height: 28px;
+  min-width: 28px;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.action-button:hover,
+td.actions-cell form button:hover {
+  opacity: 0.85;
+}
+/* Farben für Aktionsbuttons */
+.action-button.view-button { background-color: #17a2b8; }
+.action-button.public-button { background-color: #28a745; }
+.action-button.private-button { background-color: #ffc107; color: #333 !important; }
+.action-button.delete-button { background-color: #dc3545; }
+.action-button.download-button { background-color: #6c757d; }
+.action-button.secondary { background-color: #6c757d; }
+
+/* --- NEU: Spezifisches Styling für das Rollen-Dropdown in all_users.php --- */
+td form select[name="role"] {
+    padding: 5px 8px;          /* Padding angepasst */
+    font-size: 0.9em;
+    min-width: 80px;
+    vertical-align: middle;    /* Wichtig für Ausrichtung */
+    margin: 0;                 /* Keine extra Ränder */
+    line-height: normal;       /* Standard für Select */
+    /* height: 28px; */        /* Optional: Feste Höhe, falls nötig */
+    border-radius: 4px;        /* Konsistent mit Buttons */
+    border: 1px solid var(--input-border);
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    cursor: pointer;
+}
+td form select[name="role"]:hover {
+    border-color: var(--input-border-hover);
+}
+td form select[name="role"]:focus {
+    border-color: var(--button-bg);
+    box-shadow: 0 0 0 0.15rem var(--focus-ring-color);
+    outline: none;
+}
+/* --- ENDE Rollen-Dropdown Styling --- */
+
+
+/* --- Status Label --- */
+.status-label { padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 500; display: inline-block; white-space: nowrap; vertical-align: middle;} /* vertical-align hinzugefügt */
+.status-public { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.status-private { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+/* Dark Mode Anpassungen für Status Labels */
+html[data-theme="dark"] .status-public { background-color: #1d4124; color: #c3e6cb; border-color: #2a5c33; }
+html[data-theme="dark"] .status-private { background-color: #58151c; color: #f5c6cb; border-color: #7a2830; }
+
+/* --- Allgemeine Buttons --- */
+.button {
+  display: inline-block;
+  padding: 10px 20px;
+  font-size: 1em;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  color: var(--button-text);
+  background: linear-gradient(135deg, var(--button-bg) 0%, #0056b3 100%);
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
+  vertical-align: middle;
+  position: relative;
+  overflow: hidden;
+}
+.button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+.button:hover::before {
+  left: 100%;
+}
+.button:hover {
+  background: linear-gradient(135deg, #0056b3 0%, var(--button-bg) 100%);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+.button:active {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+input[type='submit'].button, button.button { /* Anpassung für <button> Elemente */
+  line-height: inherit; /* Verhindert seltsame Höhen */
+}
+.button-group { display: flex; gap: 10px; align-items: center;} /* align-items hinzugefügt */
+.button-group .button { margin-bottom: 0; }
+
+/* Button Varianten */
+.button.button-primary {
+  background: linear-gradient(135deg, var(--button-primary-bg) 0%, #0056b3 100%);
+  color: var(--button-primary-text);
+  border-color: var(--button-primary-border);
+}
+.button.button-primary:hover {
+  background: linear-gradient(135deg, #0056b3 0%, var(--button-primary-bg) 100%);
+}
+.button.button-secondary {
+  background: linear-gradient(135deg, var(--button-secondary-bg) 0%, #5a6268 100%);
+  color: var(--button-secondary-text);
+  border-color: var(--button-secondary-border);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.08);
+}
+.button.button-secondary:hover {
+  background: linear-gradient(135deg, #5a6268 0%, var(--button-secondary-bg) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.1);
+}
+.button.button-danger { background-color: #dc3545; border-color: #dc3545; }
+.button.button-danger:hover { background-color: #c82333; border-color: #c82333; }
+.button.button-warning { background-color: #ffc107; color: #000; border-color: #ffc107; }
+.button.button-warning:hover { background-color: #e0a800; border-color: #e0a800; }
+html[data-theme="dark"] .button.button-primary {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
+html[data-theme="dark"] .button.button-primary:hover {
+  background-color: #004085;
+  border-color: #004085;
+}
+html[data-theme="dark"] .button.button-secondary {
+  background-color: #343a40;
+  color: #ced4da;
+  border-color: #495057;
+}
+html[data-theme="dark"] .button.button-secondary:hover {
+  background-color: #495057;
+  border-color: #6c757d;
+}
+
+/* Deaktivierter Button */
+.button:disabled,
+button:disabled { /* Auch für normale <button> */
+  background-color: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+
+/* --- Formulare --- */
+form { margin-bottom: 1.5rem; }
+label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-color); }
+input[type='text'],
+input[type='password'],
+input[type='email'],
+input[type='search'],
+input[type='file'],
+select, /* Basis-Select-Stil */
+textarea {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1em;
+  line-height: 1.5;
+  color: var(--text-color);
+  background-color: var(--input-bg);
+  background-clip: padding-box;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  margin-bottom: 1rem;
+  vertical-align: middle; /* Hinzugefügt */
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--button-bg);
+  box-shadow: 0 0 0 0.2rem var(--focus-ring-color);
+}
+input[type='file'] { padding: 8px 12px; }
+input[type="file"]:not(:disabled):not([readonly]):hover { border-color: var(--input-border-hover); }
+input[type="file"]::file-selector-button {
+  padding: 8px 15px;
+  margin: -8px -12px;
+  margin-right: 12px;
+  color: var(--button-text);
+  background-color: var(--button-bg);
+  border: none;
+  border-radius: 4px 0 0 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+input[type="file"]::file-selector-button:hover { background-color: var(--button-hover-bg); }
+/* Basis-Select-Stil (Pfeil etc.) */
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 16px 12px;
+    padding-right: 2.5rem; /* Platz für den Pfeil */
+}
+html[data-theme="dark"] select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ced4da' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+html[data-theme="dark"] .form-group select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ced4da' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+/* Ausnahmen für Selects in Tabellen werden oben behandelt (td form select[name="role"]) */
+
+
+/* --- Upload Form spezifisch --- */
+.drop-zone {
+    border: 2px dashed var(--input-border);
+    border-radius: 6px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+    margin-bottom: 1rem;
+    background-color: var(--background-color);
+}
+.drop-zone.dragover {
+    border-color: var(--button-bg);
+    background-color: var(--table-row-even);
+}
+.drop-zone p { margin: 0 0 5px 0; font-weight: 500; }
+.drop-zone small { font-size: 0.85em; color: var(--text-secondary); display: block; margin-top: 5px; }
+.file-list {
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9em;
+    background: var(--card-bg);
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--table-border);
+    max-height: 200px;
+    overflow-y: auto;
+}
+.file-list ul { list-style: none; padding: 0; margin: 0; }
+.file-list li {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px dashed var(--input-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.file-list li:last-child { border-bottom: none; }
+.file-list-text {
+    word-break: break-all;
+    flex-grow: 1;
+    font-size: 0.95em;
+}
+.remove-file-btn {
+    background-color: var(--alert-error-bg);
+    color: var(--alert-error-text);
+    border: 1px solid var(--alert-error-border);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 22px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background-color 0.2s, color 0.2s;
+}
+.remove-file-btn:hover { background-color: var(--alert-error-text); color: var(--alert-error-bg); }
+html[data-theme="dark"] .remove-file-btn:hover { background-color: var(--alert-error-text); color: #000; }
+
+#upload-form button[type="submit"] { width: 100%; margin-top: 10px; }
+
+/* --- Speicheranzeige --- */
+.storage-info {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  font-size: 0.9em;
+}
+.storage-bar {
+  width: 100%;
+  height: 12px;
+  background-color: var(--storage-bg);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+.storage-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--storage-fill-gradient-start) 0%, var(--storage-fill-gradient-end) 100%);
+  border-radius: 6px 0 0 6px;
+  transition: width 0.5s ease-out;
+}
+.storage-bar-text { margin-top: 5px; color: var(--text-secondary); }
+
+/* --- Footer --- */
+footer {
+  text-align: center;
+  padding: 25px 15px;
+  font-size: 0.9em;
+  background-color: var(--footer-bg);
+  color: var(--footer-text);
+  margin-top: auto;
+  border-top: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+footer .container { margin: 0 auto; padding: 0 15px; }
+footer a { color: var(--link-color); }
+
+/* --- Drag & Drop Styles --- */
+tr.dragging {
+  opacity: 0.5;
+  transform: rotate(5deg);
+}
+
+tr.drag-over {
+  background-color: var(--accent-color);
+  border: 2px dashed var(--primary-color);
+}
+
+tr.drag-over td {
+  background-color: rgba(52, 152, 219, 0.1);
+}
+
+.root-drop-zone.drag-over {
+  background-color: rgba(52, 152, 219, 0.1);
+  border: 2px dashed var(--primary-color);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.breadcrumb-link.drag-over {
+  background-color: rgba(52, 152, 219, 0.1);
+  border: 2px dashed var(--primary-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+/* --- Navigationsaktionen --- */
+.nav-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.nav-actions .btn {
+  padding: 8px 12px;
+  font-size: 0.9em;
+}
+
+/* --- Spezifische Styles für Dateiansicht (view_file.php) --- */
+.view-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.view-header h1 { margin-bottom: 0.2rem; border: none; padding: 0; word-break: break-all; }
+.view-header small { color: var(--text-secondary); }
+.view-header div:last-child { flex-shrink: 0; }
+.view-content { }
+.view-content img, .view-content video, .view-content audio { max-width: 100%; height: auto; display: block; margin: 1rem auto; }
+.view-content audio { width: 100%; height: 54px; margin-top: 15px; margin-bottom: 15px; }
+.view-content pre { background-color: var(--pre-bg); color: var(--pre-text); padding: 15px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--card-border); }
+.view-content iframe, .view-content object { width: 100%; height: 75vh; border: 1px solid var(--card-border); }
+.unsupported-view { text-align: center; padding: 20px; }
+
+/* --- Alerts für Feedback --- */
+/* Container positioniert Benachrichtigungen oben rechts, unabhängig vom Seitenlayout */
+.ajax-toast-container {
+  position: fixed;
+  top: calc(4rem + 10px); /* unter Header platzieren (Header ca. 4rem) */
+  right: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 340px;
+  width: min(90vw, 340px);
+  pointer-events: none;
+}
+
+.ajax-toast-container .alert {
+  margin: 0;
+  width: 100%;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.2);
+  pointer-events: auto;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.ajax-toast-container .alert.fade-out {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.alert {
+  padding: 15px 20px;
+  margin-bottom: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  position: relative;
+}
+.alert ul { padding-left: 20px; margin-top: 5px; margin-bottom: 0; }
+.alert li { margin-bottom: 3px; }
+.alert-success { background-color: var(--alert-success-bg); border-color: var(--alert-success-border); color: var(--alert-success-text); }
+.alert-error { background-color: var(--alert-error-bg); border-color: var(--alert-error-border); color: var(--alert-error-text); }
+.alert-info { background-color: var(--alert-info-bg); border-color: var(--alert-info-border); color: var(--alert-info-text); }
+.alert-warning { background-color: var(--alert-warning-bg); border-color: var(--alert-warning-border); color: var(--alert-warning-text); }
+
+/* --- CSS Variablen (Light Mode) --- */
+:root {
+  --header-bg: #ffffff; --header-text: #333; --header-border: #e0e0e0; --header-accent: #007bff;
+  --h1-color: #333; --text-color: #333; --text-secondary: #667; --background-color: #f8f9fa;
+  --card-bg: #ffffff; --card-border: #e9ecef; --link-color: #007bff;
+  --button-bg: #007bff; --button-text: #ffffff; --button-hover-bg: #0056b3; --button-border: #007bff;
+  --button-primary-bg: #007bff; --button-primary-text: #ffffff; --button-primary-border: #007bff; --button-primary-hover-bg: #0056b3;
+  --button-secondary-bg: #6c757d; --button-secondary-text: #ffffff; --button-secondary-border: #6c757d; --button-secondary-hover-bg: #5a6268;
+  --button-disabled-bg: #cdd2d6; --button-disabled-text: #6c757d;
+  --table-border: #dee2e6; --table-row-even: #f8f9fa; --table-row-hover: #e9ecef;
+  --table-header-bg: #f1f3f5; --table-header-text: #495057;
+  --input-bg: #ffffff; --input-border: #ced4da; --input-border-hover: #adb5bd; --focus-ring-color: rgba(0, 123, 255, 0.25);
+  --storage-bg: #e9ecef; --storage-fill-gradient-start: #007bff; --storage-fill-gradient-end: #0056b3;
+  --footer-bg: #ffffff; --footer-text: #6c757d;
+  --pre-bg: #f1f3f5; --pre-text: #212529;
+  --alert-success-bg: #d4edda; --alert-success-border: #c3e6cb; --alert-success-text: #155724;
+  --alert-error-bg: #f8d7da; --alert-error-border: #f5c6cb; --alert-error-text: #721c24;
+  --alert-info-bg: #d1ecf1; --alert-info-border: #bee5eb; --alert-info-text: #0c5460;
+  --alert-warning-bg: #fff3cd; --alert-warning-border: #ffeeba; --alert-warning-text: #856404;
+}
+
+/* --- CSS Variablen (Dark Mode) --- */
+html[data-theme="dark"] {
+  --header-bg: #212529; --header-text: #e9ecef; --header-border: #343a40; --header-accent: #6cb2eb;
+  --h1-color: #e9ecef; --text-color: #ced4da; --text-secondary: #adb5bd; --background-color: #121212;
+  --card-bg: #1f2327; --card-border: #343a40; --link-color: #6cb2eb;
+  --button-bg: #377dff; --button-text: #ffffff; --button-hover-bg: #5a91ff; --button-border: #377dff;
+  --button-primary-bg: #0056b3; --button-primary-text: #ffffff; --button-primary-border: #0056b3; --button-primary-hover-bg: #004085;
+  --button-secondary-bg: #343a40; --button-secondary-text: #ced4da; --button-secondary-border: #495057; --button-secondary-hover-bg: #495057;
+  --button-disabled-bg: #3e444a; --button-disabled-text: #868e96;
+  --table-border: #495057; --table-row-even: #2c3034; --table-row-hover: #343a40;
+  --table-header-bg: #343a40; --table-header-text: #e9ecef;
+  --input-bg: #2c3034; --input-border: #495057; --input-border-hover: #6c757d; --focus-ring-color: rgba(55, 125, 255, 0.3);
+  --storage-bg: #343a40; --storage-fill-gradient-start: #377dff; --storage-fill-gradient-end: #1a5fd1;
+  --footer-bg: #212529; --footer-text: #adb5bd;
+  --pre-bg: #2c3034; --pre-text: #ced4da;
+  --alert-success-bg: #1d4124; --alert-success-border: #2a5c33; --alert-success-text: #c3e6cb;
+  --alert-error-bg: #58151c; --alert-error-border: #7a2830; --alert-error-text: #f5c6cb;
+  --alert-info-bg: #0a4350; --alert-info-border: #1b6d80; --alert-info-text: #bee5eb;
+  --alert-warning-bg: #664d03; --alert-warning-border: #80600c; --alert-warning-text: #ffeeba;
+}
+
+/* --- Suchformular Layout (Überarbeitet) --- */
+form.search-form-inline {
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  margin-bottom: 20px;
+}
+form.search-form-inline input[type="search"] {
+  flex-grow: 1;
+  margin-bottom: 0;
+  min-width: 150px;
+}
+form.search-form-inline button {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* --- Dropdown Menü Styles (Überarbeitet/Ergänzt) --- */
+.nav-item {
+  position: relative;
+  display: inline-block;
+}
+.dropdown-toggle { }
+.dropdown-toggle:focus {
+  background-color: rgba(128, 128, 128, 0.1);
+  outline: none;
+}
+.dropdown-toggle::after {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-left: 0.5em;
+  vertical-align: middle;
+  border-top: 0.4em solid;
+  border-right: 0.4em solid transparent;
+  border-bottom: 0;
+  border-left: 0.4em solid transparent;
+  transition: transform 0.2s ease-in-out;
+  opacity: 0.8;
+}
+.dropdown-toggle[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+.profile-initials-button::after {
+     vertical-align: 0.15em;
+     margin-left: 0.3em;
+}
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  min-width: 180px;
+  max-width: 280px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+  padding: 8px 0;
+  margin-top: 5px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.dropdown-menu-right {
+  left: auto;
+  right: 0;
+}
+.dropdown-menu.active {
+  display: block;
+}
+.dropdown-menu a,
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 15px;
+  clear: both;
+  font-weight: normal;
+  color: var(--text-color);
+  text-align: left;
+  white-space: nowrap;
+  background-color: transparent;
+  border: 0;
+  text-decoration: none;
+  font-size: 0.95em;
+  cursor: pointer;
+}
+.dropdown-menu a:hover,
+.dropdown-menu button:hover {
+  background-color: var(--table-row-hover);
+  color: var(--text-color);
+  text-decoration: none;
+}
+.dropdown-menu a.active {
+  font-weight: bold;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+}
+.dropdown-divider {
+  height: 0;
+  margin: 0.5rem 0;
+  overflow: hidden;
+  border-top: 1px solid var(--card-border);
+}
+.dropdown-item-text {
+  display: block;
+  padding: 8px 15px;
+  color: var(--text-secondary);
+  font-size: 0.85em;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+.dropdown-menu form {
+  margin: 0;
+  padding: 0;
+}
+.logout-item { color: var(--alert-error-text) !important; width: 100%; }
+.logout-item:hover { background-color: var(--alert-error-bg) !important; color: var(--alert-error-text) !important; }
+.theme-switch-button.active {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  font-weight: bold;
+}
+html[data-theme="dark"] .dropdown-toggle:hover,
+html[data-theme="dark"] .dropdown-toggle:focus { background-color: rgba(255, 255, 255, 0.08); }
+html[data-theme="dark"] .dropdown-menu a:hover,
+html[data-theme="dark"] .dropdown-menu button:hover { background-color: var(--table-row-hover); color: var(--text-color); }
+html[data-theme="dark"] .dropdown-menu a.active,
+html[data-theme="dark"] .theme-switch-button.active { background-color: var(--button-bg); color: var(--button-text); }
+html[data-theme="dark"] .logout-item { color: var(--alert-error-text) !important; }
+html[data-theme="dark"] .logout-item:hover { background-color: var(--alert-error-bg) !important; color: var(--alert-error-text) !important; }
+
+/* --- Responsive Anpassungen --- */
+@media (max-width: 768px) {
+    /* Header & Navi mobil */
+    header .container {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    header nav {
+        margin-top: 10px;
+        gap: 5px 8px;
+        justify-content: flex-start;
+        width: 100%;
+    }
+    header nav > a,
+    header nav > .nav-item > .dropdown-toggle,
+    header nav > form > button {
+        padding: 7px 10px;
+        font-size: 0.95em;
+    }
+    .dropdown-menu {
+        min-width: 220px;
+    }
+    .dropdown-menu-right {
+        left: auto;
+        right: 0;
+    }
+
+    /* Allgemein mobil */
+    .container { width: 100%; padding: 0 10px; }
+    h1 { font-size: 1.7em; } h2 { font-size: 1.4em; } h3 { font-size: 1.15em; }
+    .auth-card { padding: 20px; width: 95%; margin: 20px auto; }
+    .table-container { width: 100%; }
+    th, td { padding: 8px 10px; }
+
+    /* Aktionsbuttons mobil */
+    td.actions-cell {
+        justify-content: flex-start;
+        gap: 4px;
+    }
+    td.actions-cell form,
+    td.actions-cell a.action-button {
+        margin: 1px 0; /* Vertikaler Abstand bei Umbruch */
+    }
+
+    /* Suche mobil */
+    form.search-form-inline {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    form.search-form-inline input[type="search"] {
+        min-width: 0;
+    }
+
+    /* Rollen-Select mobil */
+    td form select[name="role"] {
+       width: 100%; /* Volle Breite in Tabellenzelle auf Mobilgeräten */
+       /* Evtl. leicht größeres Padding/Schriftgröße für bessere Bedienbarkeit */
+       /* padding: 8px 10px; */
+       /* font-size: 1em; */
+    }
+
+
+    /* View Header mobil */
+    .view-header { align-items: flex-start; }
+    .view-header div:last-child { /* Button-Gruppe */
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+        gap: 5px;
+    }
+    .view-header div:last-child .button { font-size: 0.9em; padding: 8px 12px; }
+}
+
+/* Entfernte CSS-Regeln für .dropdown-caret */
+/* Entfernte CSS-Regeln für .theme-toggle-button */
+
+/* Verbessert Kontrast für Links innerhalb der Auth-Card (Login/Register) */
+.auth-card p a {
+  /* Beispiel: Etwas helleres Blau für Dark Mode, kräftigeres Blau für Light Mode */
+  color: var(--link-color); /* Standard als Fallback */
+  font-weight: 500; /* Etwas dicker machen */
+  text-decoration: underline; /* Sicherstellen, dass er unterstrichen ist */
+}
+
+/* Optional: Spezifische Anpassung nur für Dark Mode */
+html[data-theme="dark"] .auth-card p a {
+  color: #8ec0f5; /* Beispiel: Ein hellerer Blauton mit besserem Kontrast auf dunklem Grund */
+}
+
+/* Optional: Hover-Effekt verbessern */
+.auth-card p a:hover {
+  color: var(--button-hover-bg); /* Farbe vom Button-Hover nehmen */
+  text-decoration: none; /* Unterstreichung beim Hover entfernen */
+}
+
+.password-wrapper {
+  position: relative; /* Wichtig für die absolute Positionierung des Icons */
+  margin-bottom: 1rem; /* Behält den Abstand zum nächsten Element bei */
+}
+
+/* Entferne den Standard-Margin vom Input, da der Wrapper ihn hat */
+.password-wrapper input[type="password"],
+.password-wrapper input[type="text"] { /* Auch für den Text-Modus */
+    margin-bottom: 0;
+    padding-right: 40px; /* Platz für das Icon rechts schaffen */
+}
+
+.toggle-password-icon {
+  position: absolute;
+  top: 50%; /* Vertikal zentrieren relativ zur Wrapper-Höhe (Anpassung evtl. nötig) */
+  right: 10px; /* Abstand vom rechten Rand des Wrappers */
+  transform: translateY(-50%); /* Genaue vertikale Zentrierung */
+  cursor: pointer;
+  user-select: none; /* Verhindert Textauswahl des Icons */
+  display: none; /* Standardmäßig versteckt */
+  color: var(--text-secondary); /* Farbe für das Icon */
+  font-size: 1.2em; /* Größe des Icons anpassen */
+  z-index: 2; /* Sicherstellen, dass es über dem Input liegt */
+}
+
+/* Icon nur anzeigen, wenn über den Wrapper (inkl. Input) gehovert wird */
+.password-wrapper:hover .toggle-password-icon {
+  display: block;
+}
+
+/* Optional: Style, wenn das Passwort sichtbar ist (z.B. anderes Icon) */
+.toggle-password-icon.visible {
+   /* Hier könntest du z.B. die Farbe ändern oder ein anderes Icon per Klasse setzen */
+   /* color: var(--link-color); */
+}
+
+/* --- Modal (Popup) Styles --- */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal.open {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+    border: 1px solid var(--card-border);
+}
+
+.modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-color);
+    padding: 5px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.modal-close:hover {
+    background-color: var(--button-hover-bg);
+    color: var(--button-hover-text);
+}
+
+/* --- Wizard Styles for 2FA Modal --- */
+.wizard {
+    width: 100%;
+}
+
+.wizard-content {
+    width: 100%;
+}
+
+.wizard-pane {
+    display: none;
+}
+
+.wizard-pane.active {
+    display: block;
+}
+
+/* Action buttons layout */
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 0.5rem 0;
+}
+
+/* 2FA Popup Buttons (Dedicated Classes) */
+.twofa-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  color: white !important;
+  line-height: 1.5;
+  white-space: normal;
+  flex: 1;
+  min-width: 0;
+}
+
+.twofa-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.twofa-button-primary {
+  background-color: var(--button-bg);
+  color: var(--button-text) !important;
+}
+
+.twofa-button-primary:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.twofa-button-secondary {
+  background-color: var(--secondary-bg, #e0e0e0);
+  color: var(--text-color) !important;
+}
+
+.twofa-button-secondary:hover {
+  background-color: var(--secondary-hover, #d0d0d0);
+}
+
+.twofa-button-danger {
+  background-color: var(--danger-bg, #dc3545);
+  color: white !important;
+}
+
+.twofa-button-danger:hover {
+  background-color: var(--danger-hover, #c82333);
+}
+
+
+
+/* Full-width disable button for 2FA */
+.twofa-button[data-action="disable"] {
+    flex-basis: 100%;
+    width: 100%;
+    flex: none;
+}
+
+/* Disabled 2FA buttons */
+.twofa-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #ccc !important;
+    color: #666 !important;
+}
+
+.twofa-button:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Action content display */
+.action-content {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: var(--card-bg);
+    border-radius: 4px;
+    border-left: 4px solid var(--button-bg);
+}
+
+.action-content h3 {
+    margin-top: 0;
+}
+
+.action-content form {
+    display: flex;
+    flex-direction: column;
+}
+
+/* QR Code Display */
+.qr-code-container {
+    display: flex;
+    justify-content: center;
+    margin: 1.5rem 0;
+}
+
+.qr-code-container img {
+    max-width: 250px;
+    height: auto;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+    margin-bottom: 1rem;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.breadcrumb a {
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+.breadcrumb a:hover {
+    text-decoration: underline;
+}
+
+/* File actions */
+.file-actions {
+    margin-bottom: 1rem;
+}
+
+.file-actions .btn {
+    margin-right: 0.5rem;
+}
+
+/* Folder row styling */
+.folder-row {
+    background-color: var(--table-row-alt-bg);
+}
+
+.folder-row:hover {
+    background-color: var(--table-row-hover-bg);
+}
+
+/* Create folder page styling */
+.create-folder-card {
+    max-width: 600px;
+    margin: 0 auto;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.card-header {
+    background-color: var(--header-bg);
+    color: var(--header-text);
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--header-border);
+}
+
+.card-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.create-folder-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.create-folder-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.create-folder-form input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--input-border);
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.create-folder-form input[type="text"]:focus {
+    outline: none;
+    border-color: var(--button-bg);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-help {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 2rem;
+}
+
+.btn-large {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.btn-large i {
+    margin-right: 0.5rem;
+}
+
+/* Icon styles using Unicode */
+.icon-folder::before {
+    content: "📁";
+    margin-right: 0.5rem;
+}
+
+.icon-folder-open::before {
+    content: "📂";
+    margin-right: 0.5rem;
+}
+
+.icon-plus::before {
+    content: "➕";
+}
+
+.icon-cancel::before {
+    content: "❌";
+}
+
+.icon-upload::before {
+    content: "⬆️";
+}
+
+.icon-file::before {
+    content: "📄";
+    margin-right: 0.5rem;
+}
+
+.icon-view::before {
+    content: "👁️";
+}
+
+.icon-private::before {
+    content: "🔒";
+}
+
+.icon-public::before {
+    content: "🌍";
+}
+
+.icon-download::before {
+    content: "💾";
+}
+
+.icon-edit::before {
+    content: "✏️";
+}
+
+.icon-delete::before {
+    content: "🗑️";
+}

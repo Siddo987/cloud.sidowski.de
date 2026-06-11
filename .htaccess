@@ -1,0 +1,18 @@
+# --- NEU: Zuerst nach index.php suchen, dann nach index.html ---
+DirectoryIndex index.php index.html
+
+# Verhindert das Auflisten von Verzeichnisinhalten generell
+Options -Indexes -MultiViews
+
+# Aktiviere die Rewrite Engine
+RewriteEngine On
+
+# Verhindere direkten Zugriff auf sensible Verzeichnisse
+RewriteRule ^config/ - [F,L]
+RewriteRule ^includes/ - [F,L]
+
+# Verstecke .php-Endungen - erlaubt aber direkten Zugriff auf .php-Dateien
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.*)$ $1.php [L]

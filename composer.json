@@ -1,0 +1,6 @@
+{
+    "require": {
+        "phpmailer/phpmailer": "^7.0",
+        "web-auth/webauthn-lib": "^4.8"
+    }
+}
