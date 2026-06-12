@@ -167,8 +167,8 @@ function send_email($to, $subject, $body, $is_html = true) {
             if (defined('SMTP_USER')) { $mail->SMTPAuth = true; $mail->Username = SMTP_USER; $mail->Password = SMTP_PASS; }
             $mail->CharSet = 'UTF-8';
             // From
-            $from = defined('SMTP_FROM') ? SMTP_FROM : 'no-reply@example.com';
-            $name = defined('SMTP_NAME') ? SMTP_NAME : 'No-Reply';
+            $from = defined('SMTP_FROM') && SMTP_FROM !== '' ? SMTP_FROM : 'no-reply@example.com';
+            $name = defined('SMTP_NAME') && SMTP_NAME !== '' ? SMTP_NAME : 'No-Reply Datei Wolke';
             $mail->setFrom($from, $name);
             // Recipient
             $mail->addAddress($to);
@@ -177,6 +177,8 @@ function send_email($to, $subject, $body, $is_html = true) {
             $mail->Subject = $subject;
             $mail->Body = $body;
             // Send
+            $mail->preSend();
+            error_log($mail->createHeader(), 3, __DIR__ . '/phpmailer_headers.log');
             $sent = $mail->send();
             if (!$sent) {
                 error_log('PHPMailer: send() returned false for recipient ' . $to, 3, __DIR__ . '/phpmailer_errors.log');
@@ -188,8 +190,10 @@ function send_email($to, $subject, $body, $is_html = true) {
         }
     }
 
-    // Fallback: PHP mail() mit Logging
-    $headers = "From: " . (defined('SMTP_NAME') ? SMTP_NAME : 'No-Reply') . " <" . (defined('SMTP_FROM') ? SMTP_FROM : 'no-reply@example.com') . ">\r\n";
+    $from = defined('SMTP_FROM') && SMTP_FROM !== '' ? SMTP_FROM : 'no-reply@example.com';
+    $name = defined('SMTP_NAME') && SMTP_NAME !== '' ? SMTP_NAME : 'No-Reply Datei Wolke';
+    $headers = "From: \"{$name}\" <{$from}>\r\n";
+    $headers .= "Reply-To: {$from}\r\n";
     $headers .= "MIME-Version: 1.0\r\n";
     $headers .= ($is_html ? "Content-type: text/html; charset=utf-8\r\n" : "Content-type: text/plain; charset=utf-8\r\n");
 
