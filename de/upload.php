@@ -76,6 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['files'])) {
     $uploaded_files_count = 0;
     $error_files_count = 0;
     $upload_errors = []; // Sammle spezifische Fehler (Schlüssel + Argumente)
+    $used_filenames_in_batch = []; // Verhindert Cache-Probleme bei identischen Namen im selben Request
 
     for ($i = 0; $i < $total_files; $i++) {
         if ($_FILES['files']['error'][$i] === UPLOAD_ERR_NO_FILE) continue;
@@ -101,13 +102,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['files'])) {
 
         // Zielpfad bestimmen & Überschreiben verhindern
         $target_filename = $filename; $target_file_path = $user_upload_path . '/' . $target_filename; $counter = 1;
-        while (file_exists($target_file_path)) {
+        clearstatcache(true, $target_file_path); // Wichtig, um PHP File-Cache zu leeren
+        while (file_exists($target_file_path) || in_array($target_filename, $used_filenames_in_batch)) {
             $filename_no_ext = pathinfo($filename, PATHINFO_FILENAME);
             $target_filename = $filename_no_ext . '_' . $counter . '.' . $file_extension;
             $target_file_path = $user_upload_path . '/' . $target_filename;
             $counter++;
+            clearstatcache(true, $target_file_path);
             if ($counter > 100) { $error_files_count++; $upload_errors[] = ['key' => 'error_file_exists_rename', 'args' => [$filename]]; continue 2; }
         }
+        
+        $used_filenames_in_batch[] = $target_filename;
 
         // Datei verschieben & DB Eintrag
         if (move_uploaded_file($file_tmp, $target_file_path)) {
@@ -115,10 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['files'])) {
             if ($stmt) {
                 $stmt->bind_param("siiis", $target_filename, $file_size, $current_user_id, $current_folder_id, $public);
                 if ($stmt->execute()) { $uploaded_files_count++; }
-                else { $error_files_count++; $upload_errors[] = ['key' => 'error_db_insert_file', 'args' => [$target_filename]]; error_log(/*...*/); @unlink($target_file_path); }
+                else { $error_files_count++; $upload_errors[] = ['key' => 'error_db_insert_file', 'args' => [$target_filename]]; error_log("DB Insert failed: " . $conn->error); @unlink($target_file_path); }
                 $stmt->close();
-            } else { $error_files_count++; $upload_errors[] = ['key' => 'error_db_prepare_file', 'args' => [$target_filename]]; error_log(/*...*/); @unlink($target_file_path); }
-        } else { $error_files_count++; $upload_errors[] = ['key' => 'error_failed_to_move_file', 'args' => [$filename]]; error_log(/*...*/); }
+            } else { $error_files_count++; $upload_errors[] = ['key' => 'error_db_prepare_file', 'args' => [$target_filename]]; error_log("DB Prepare failed: " . $conn->error); @unlink($target_file_path); }
+        } else { $error_files_count++; $upload_errors[] = ['key' => 'error_failed_to_move_file', 'args' => [$filename]]; error_log("Failed to move uploaded file"); }
     } // Ende for-Schleife
 
     // --- Feedback generieren (NUR Schlüssel und Argumente!) ---
