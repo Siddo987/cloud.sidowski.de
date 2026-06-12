@@ -233,14 +233,28 @@ function handle_post_action($conn, $current_user_id, &$enabled_2fa, &$method_2fa
 
                 if ($valid) {
                     // Aktiviere 2FA und speichere die neue Methode/Secret
-                    if ($method === 'totp' && $secret) {
-                        $update_stmt = $conn->prepare("UPDATE users SET two_factor_enabled = 1, two_factor_method = ?, two_factor_secret = ? WHERE id = ?");
-                        $update_stmt->bind_param('ssi', $method, $secret, $current_user_id);
-                        if ($update_stmt->execute()) {
-                            $enabled_2fa = true;
-                            $method_2fa = $method;
-                            $secret_2fa = $secret;
-                            unset($_SESSION['pending_totp_secret']);
+                        if ($method === 'totp' && $secret) {
+                            // Generate backup codes if not already done
+                            $stmt = $conn->prepare("SELECT two_factor_backup_codes FROM users WHERE id = ?");
+                            $stmt->bind_param('i', $current_user_id);
+                            $stmt->execute();
+                            $existing = $stmt->get_result()->fetch_assoc();
+                            $stmt->close();
+                            
+                            $backup_json = isset($existing['two_factor_backup_codes']) ? $existing['two_factor_backup_codes'] : null;
+                            if (!$backup_json) {
+                                $bc = tf_generate_backup_codes(8);
+                                $backup_json = isset($bc['json']) ? $bc['json'] : (isset($bc['hashes']) ? $bc['hashes'] : json_encode($bc));
+                                $_SESSION['pending_backup_codes'] = $bc['plain'];
+                            }
+                            
+                            $update_stmt = $conn->prepare("UPDATE users SET two_factor_enabled = 1, two_factor_method = ?, two_factor_secret = ?, two_factor_backup_codes = ? WHERE id = ?");
+                            $update_stmt->bind_param('sssi', $method, $secret, $backup_json, $current_user_id);
+                            if ($update_stmt->execute()) {
+                                $enabled_2fa = true;
+                                $method_2fa = $method;
+                                $secret_2fa = $secret;
+                                unset($_SESSION['pending_totp_secret']);
                             if ($is_ajax) {
                                 header('Content-Type: application/json');
                                 echo json_encode(['success' => true, 'message' => lang('success_2fa_enabled')]);
@@ -267,7 +281,8 @@ function handle_post_action($conn, $current_user_id, &$enabled_2fa, &$method_2fa
                         $backup_json = isset($existing['two_factor_backup_codes']) ? $existing['two_factor_backup_codes'] : null;
                         if (!$backup_json) {
                             $bc = tf_generate_backup_codes(8);
-                            $backup_json = isset($bc['json']) ? $bc['json'] : $bc['hashes'];
+                            $backup_json = isset($bc['json']) ? $bc['json'] : (isset($bc['hashes']) ? $bc['hashes'] : json_encode($bc));
+                            $_SESSION['pending_backup_codes'] = $bc['plain'];
                         }
                         
                         $update_stmt = $conn->prepare("UPDATE users SET two_factor_enabled = 1, two_factor_method = ?, two_factor_backup_codes = ? WHERE id = ?");
@@ -448,6 +463,7 @@ function handle_post_action($conn, $current_user_id, &$enabled_2fa, &$method_2fa
                 // Neue Backup-Codes generieren
                 $bc = tf_generate_backup_codes(8);
                 $backup_json = isset($bc['json']) ? $bc['json'] : (isset($bc['hashes']) ? $bc['hashes'] : json_encode($bc));
+                $_SESSION['pending_backup_codes'] = $bc['plain'];
                 
                 $update_stmt = $conn->prepare("UPDATE users SET two_factor_backup_codes = ? WHERE id = ?");
                 $update_stmt->bind_param('si', $backup_json, $current_user_id);
@@ -456,10 +472,11 @@ function handle_post_action($conn, $current_user_id, &$enabled_2fa, &$method_2fa
                     $update_stmt->close();
                     if ($is_ajax) {
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => true, 'message' => 'Backup-Codes erfolgreich regeneriert']);
+                        $download_url = 'actions/download_backup_codes';
+                        echo json_encode(['success' => true, 'message' => 'Neue Backup-Codes generiert! Download startet...', 'download_url' => $download_url]);
                         exit;
                     } else {
-                        set_flash_message('success_backup_regenerated', 'success');
+                        redirect($current_language . '/actions/download_backup_codes');
                     }
                 } else {
                     $update_stmt->close();
@@ -473,55 +490,18 @@ function handle_post_action($conn, $current_user_id, &$enabled_2fa, &$method_2fa
                 }
                 
             } elseif ($backup_action === 'download') {
-                // Backup-Codes validieren
-                $stmt_check = $conn->prepare("SELECT two_factor_backup_codes FROM users WHERE id = ? LIMIT 1");
-                $stmt_check->bind_param('i', $current_user_id);
-                $stmt_check->execute();
-                $u_check = $stmt_check->get_result()->fetch_assoc();
-                $stmt_check->close();
-                
-                if (!$u_check || empty($u_check['two_factor_backup_codes'])) {
+                // Prüfen ob die Codes noch in der Session liegen (sie können nur 1x direkt nach Generierung geladen werden)
+                if (empty($_SESSION['pending_backup_codes']) || !is_array($_SESSION['pending_backup_codes'])) {
                     if ($is_ajax) {
                         header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Keine Backup-Codes vorhanden']);
+                        echo json_encode(['success' => false, 'message' => 'Die Backup-Codes wurden bereits heruntergeladen oder sind abgelaufen. Bitte regenerieren Sie diese.']);
                         exit;
                     }
                     set_flash_message('error_no_backup_codes', 'error');
                     return;
                 }
                 
-                $data = json_decode($u_check['two_factor_backup_codes'], true);
-                if (!is_array($data)) {
-                    if ($is_ajax) {
-                        header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Backup-Codes sind beschädigt. Bitte regenerieren.']);
-                        exit;
-                    }
-                    set_flash_message('error_invalid_backup_codes', 'error');
-                    return;
-                }
-                
-                // Prüfe auf gültige Codes-Struktur
-                $has_codes = false;
-                if (isset($data['plain']) && is_array($data['plain']) && !empty($data['plain'])) {
-                    $has_codes = true;
-                } elseif (array_keys($data) === range(0, count($data) - 1) && !empty($data)) {
-                    $has_codes = true;
-                }
-                
-                if (!$has_codes) {
-                    if ($is_ajax) {
-                        header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'Keine gültigen Backup-Codes gefunden']);
-                        exit;
-                    }
-                    set_flash_message('error_no_backup_codes', 'error');
-                    return;
-                }
-                
-                // Download-URL generieren - auf die separate download_backup_codes Datei
-                $download_url = (defined('BASE_URL') ? rtrim(BASE_URL, '/') : '') . '/de/actions/download_backup_codes';
-                $download_url = 'actions/download_backup_codes.php';
+                $download_url = 'actions/download_backup_codes';
                 
                 if ($is_ajax) {
                     header('Content-Type: application/json');
@@ -529,7 +509,6 @@ function handle_post_action($conn, $current_user_id, &$enabled_2fa, &$method_2fa
                     exit;
                 } else {
                     redirect($current_language . '/actions/download_backup_codes');
-                    redirect($current_language . '/actions/download_backup_codes.php');
                 }
             }
             break;
@@ -773,22 +752,16 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <div id="action-backup" class="action-content" style="display:none;">
                         <h3>Backup-Codes</h3>
-                        <p>Backup-Codes helfen dir, wenn du keinen Zugriff mehr auf deine primäre 2FA-Methode hast. Du kannst sie herunterladen oder neue generieren. Beim Regenerieren werden die alten Codes ungültig.</p>
+                        <p>Backup-Codes helfen dir, wenn du keinen Zugriff mehr auf deine primäre 2FA-Methode hast. Du kannst sie neu generieren und herunterladen. Beim Regenerieren werden die alten Codes ungültig.</p>
                         <form method="post" action="profil">
                             <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                             <input type="hidden" name="action" value="backup_2fa">
+                            <input type="hidden" name="backup_action" value="regen">
                             <div class="form-group">
-                                <label>Aktion:</label>
-                                <select name="backup_action" required>
-                                    <option value="download">Download</option>
-                                    <option value="regen">Regenerieren</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Passwort:</label>
+                                <label>Passwort zur Bestätigung:</label>
                                 <input type="password" name="current_password" required>
                             </div>
-                            <button type="submit" class="button button-primary">Ausführen</button>
+                            <button type="submit" class="button button-primary">Neu generieren & herunterladen</button>
                         </form>
                     </div>
                     <div id="action-disable" class="action-content" style="display:none;">
@@ -1000,23 +973,13 @@ function setup2FAListeners() {
                         
                         // If download is needed (backup codes)
                         if (data.download_url) {
-                            // Erstelle einen echten <a> Tag für den Download
-                            const link = document.createElement('a');
-                            link.href = data.download_url;
-                            link.setAttribute('download', '');
-                            link.style.display = 'none';
-                            document.body.appendChild(link);
                             // Starte den Download durch Zuweisung der URL
                             // (Da der Server 'Content-Disposition: attachment' sendet, 
                             // wird die aktuelle Seite nicht verlassen)
                             window.location.href = data.download_url;
                             
-                            // Klicke den Link um den Download zu starten
-                            link.click();
-                            
                             // Gib dem Browser Zeit um den Download zu verarbeiten
                             setTimeout(() => {
-                                document.body.removeChild(link);
                                 
                                 // Button nach Download-Start wieder freigeben
                                 if (!isEmailRequestForm && submitBtn) {
@@ -1053,15 +1016,8 @@ function setup2FAListeners() {
                             updateButtonStates(false, null);
                             form.closest('.action-content').style.display = 'none';
                         } else if (actionValue === 'backup_2fa') {
-                            // Nach Backup-Aktion verarbeiten
-                            const backupAction = form.querySelector('select[name="backup_action"]');
-                            if (backupAction && backupAction.value === 'regen') {
-                                // Nach Regenerierung: select auf 'download' umschalten, Bereich bleibt offen
-                                backupAction.value = 'download';
-                            } else if (backupAction && backupAction.value === 'download') {
-                                // Nach Download: Bereich schließen
-                                form.closest('.action-content').style.display = 'none';
-                            }
+                            // Nach Download Bereich schließen
+                            form.closest('.action-content').style.display = 'none';
                         }
                         
                         // Reset form (if not redirecting)
