@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || ($is_logged_in && $_SERVER['REQUEST
     error_log("Request received for forgot_password", 3, __DIR__ . '/../config/phpmailer_errors.log');
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         validate_csrf_token();
-        $email = isset($_POST['email']) ? trim($_POST['email']) : '';
+        $login_id = isset($_POST['login_id']) ? trim($_POST['login_id']) : '';
     } elseif ($is_logged_in) {
         // E-Mail aus DB holen für eingeloggte User
         $stmt = $conn->prepare("SELECT email FROM users WHERE id = ? LIMIT 1");
@@ -24,30 +24,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || ($is_logged_in && $_SERVER['REQUEST
         error_log("Email from DB for logged in user: " . $email, 3, __DIR__ . '/../config/phpmailer_errors.log');
     }
 
-    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        error_log("Invalid email: " . $email, 3, __DIR__ . '/../config/phpmailer_errors.log');
-        set_flash_message('error_invalid_email', 'error');
+    if (empty($login_id)) {
+        error_log("Empty login_id", 3, __DIR__ . '/../config/phpmailer_errors.log');
+        set_flash_message('error_invalid_data', 'error');
         redirect($current_language . '/forgot_password');
     }
 
-    error_log("Email validated: " . $email, 3, __DIR__ . '/../config/phpmailer_errors.log');
+    error_log("Login ID validated: " . $login_id, 3, __DIR__ . '/../config/phpmailer_errors.log');
 
-    // Prüfe, ob E-Mail existiert
-    $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-    $stmt->bind_param('s', $email); $stmt->execute(); 
+    // Prüfe, ob E-Mail oder Username existiert
+    $stmt = $conn->prepare("SELECT id, email FROM users WHERE email = ? OR username = ? LIMIT 1");
+    $stmt->bind_param('ss', $login_id, $login_id); $stmt->execute(); 
     if ($stmt->error) {
         error_log("DB error during user check: " . $stmt->error, 3, __DIR__ . '/../config/phpmailer_errors.log');
     }
     $u = $stmt->get_result()->fetch_assoc(); $stmt->close();
-    error_log("DB query result for email " . $email . ": " . json_encode($u), 3, __DIR__ . '/../config/phpmailer_errors.log');
+    error_log("DB query result for " . $login_id . ": " . json_encode($u), 3, __DIR__ . '/../config/phpmailer_errors.log');
     if (!$u) {
-        // Aus Sicherheitsgründen keine Fehlermeldung, aber leite weiter
+        $_SESSION['reset_user_id'] = 0; // Fake-ID
         set_flash_message('success_temp_code_sent', 'success'); // Fake Erfolg
-        // Weiterleitung zur Reset-Seite, damit Nutzer auf derselben Seite das Token eingeben können,
-        // auch wenn die E-Mail nicht existiert (verhindert Nutzerinformationen und vereinfacht UX).
         redirect($current_language . '/reset_password');
     }
 
+    $_SESSION['reset_user_id'] = $u['id'];
     error_log("User found: " . $u['id'], 3, __DIR__ . '/../config/phpmailer_errors.log');
 
     // Token generieren
@@ -57,12 +56,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || ($is_logged_in && $_SERVER['REQUEST
         error_log("Token created successfully", 3, __DIR__ . '/../config/phpmailer_errors.log');
         $subject = 'Temporärer Code für Passwortänderung';
         $body = '<p>Hallo,</p><p>Dein temporärer Code: <strong>' . $token . '</strong></p><p>Der Code ist 1 Stunde gültig.</p><p><a href="' . BASE_URL . '/' . $current_language . '/reset_password">Passwort zurücksetzen</a></p>';
-        if (send_email($email, $subject, $body, true)) {
+        
+        $_SESSION['last_code_sent_time'] = time();
+        
+        if (!empty($u['email']) && send_email($u['email'], $subject, $body, true)) {
             error_log("Email sent successfully", 3, __DIR__ . '/../config/phpmailer_errors.log');
             set_flash_message('success_temp_code_sent', 'success');
         } else {
-            error_log("Email sending failed", 3, __DIR__ . '/../config/phpmailer_errors.log');
-            set_flash_message('error_email_send_failed', 'error');
+            error_log("Email sending skipped or failed (no email set or error)", 3, __DIR__ . '/../config/phpmailer_errors.log');
+            // Trotzdem als Erfolg melden, falls der Nutzer Backup-Codes nutzt
+            set_flash_message('success_temp_code_sent', 'success');
         }
     } else {
         error_log("Token creation failed", 3, __DIR__ . '/../config/phpmailer_errors.log');
@@ -78,13 +81,13 @@ require_once __DIR__ . '/../includes/header.php';
 
 <div class="card">
     <h1>Passwort vergessen</h1>
-    <p>Gib deine E-Mail-Adresse ein, um einen temporären Code zu erhalten.</p>
+    <p>Gib deine E-Mail-Adresse oder deinen Benutzernamen ein.</p>
 
     <form method="post" action="forgot_password">
         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
-        <label for="email">E-Mail-Adresse</label>
-        <input type="email" id="email" name="email" required>
-        <button type="submit" class="button">Code anfordern</button>
+        <label for="login_id">E-Mail-Adresse oder Benutzername</label>
+        <input type="text" id="login_id" name="login_id" required>
+        <button type="submit" class="button">Bestätigen</button>
     </form>
 </div>
 
