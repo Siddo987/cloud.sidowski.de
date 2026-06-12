@@ -13,7 +13,7 @@ if (!isset($_SESSION['_impersonated_by_admin_id'])) {
 $admin_id = $_SESSION['_impersonated_by_admin_id'];
 
 // Hole Admin-Daten neu aus DB
-$stmt = $conn->prepare("SELECT id, username, role FROM users WHERE id = ? LIMIT 1");
+$stmt = $conn->prepare("SELECT id, username, role, session_version FROM users WHERE id = ? LIMIT 1");
 $stmt->bind_param('i', $admin_id);
 $stmt->execute();
 $admin_user = $stmt->get_result()->fetch_assoc();
@@ -28,6 +28,7 @@ if (!$admin_user) {
 $_SESSION['user_id'] = $admin_user['id'];
 $_SESSION['username'] = $admin_user['username'];
 $_SESSION['role'] = $admin_user['role'];
+$_SESSION['session_version'] = $admin_user['session_version'];
 unset($_SESSION['_impersonated_by_admin_id']);
 unset($_SESSION['_impersonation_start']);
 unset($_SESSION['_impersonation_timeout']);

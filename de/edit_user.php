@@ -39,7 +39,7 @@ if (!$user_id) {
 }
 
 // lade Benutzer (nur unlimited_upload einbeziehen, falls die Spalte existiert)
-$select_fields = "id, username, email, role";
+$select_fields = "id, username, email, role, session_version";
 $col_check = $conn->query("SHOW COLUMNS FROM users LIKE 'unlimited_upload'");
 if ($col_check && $col_check->num_rows > 0) {
     $select_fields .= ", unlimited_upload";
@@ -47,10 +47,11 @@ if ($col_check && $col_check->num_rows > 0) {
 $stmt = $conn->prepare("SELECT $select_fields FROM users WHERE id = ? LIMIT 1");
 $stmt->bind_param('i', $user_id);
 $stmt->execute();
-$user = $stmt->get_result()->fetch_assoc();
+$result = $stmt->get_result();
+$user = $result ? $result->fetch_assoc() : null;
 $stmt->close();
 // stelle sicher, dass der Schlüssel definiert ist
-if (!array_key_exists('unlimited_upload', $user)) {
+if ($user && !array_key_exists('unlimited_upload', $user)) {
     $user['unlimited_upload'] = 0;
 }
 
@@ -216,11 +217,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($fa_stmt->execute()) {
             set_flash_message('success_2fa_disabled', 'success');
             // Neu laden des Benutzers
-            $reload_stmt = $conn->prepare("SELECT id, username, email, role FROM users WHERE id = ? LIMIT 1");
+            $reload_stmt = $conn->prepare("SELECT $select_fields FROM users WHERE id = ? LIMIT 1");
             $reload_stmt->bind_param('i', $user_id);
             $reload_stmt->execute();
-            $user = $reload_stmt->get_result()->fetch_assoc();
-            if (!array_key_exists('unlimited_upload', $user)) {
+            $reload_result = $reload_stmt->get_result();
+            $user = $reload_result ? $reload_result->fetch_assoc() : null;
+            if ($user && !array_key_exists('unlimited_upload', $user)) {
                 $user['unlimited_upload'] = 0;
             }
             $reload_stmt->close();
@@ -240,6 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_id'] = $user_id;
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
+            $_SESSION['session_version'] = $user['session_version'];
             $_SESSION['_impersonated_by_admin_id'] = $current_user_id;
             $_SESSION['_impersonation_start'] = time();
             $_SESSION['_impersonation_timeout'] = time() + (30 * 60); // 30 Minuten
