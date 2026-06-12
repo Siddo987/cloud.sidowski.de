@@ -108,6 +108,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
 
         <button type="submit" id="login-btn" class="button"><?php echo lang('button_login'); ?></button>
+        <button type="button" id="webauthn-btn" class="button button-primary" style="display:none; margin-top: 10px; width: 100%;"><?php echo lang('button_login_webauthn'); ?></button>
     </form>
 
     <div class="auth-links">
@@ -117,11 +118,14 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-let webauthnAvailable = false;
+let webauthnChallengeData = null;
 
 document.getElementById('username').addEventListener('blur', async function() {
     const username = this.value.trim();
-    if (!username) return;
+    if (!username) {
+        document.getElementById('webauthn-btn').style.display = 'none';
+        return;
+    }
 
     // Prüfe, ob WebAuthn verfügbar ist
     try {
@@ -131,21 +135,20 @@ document.getElementById('username').addEventListener('blur', async function() {
             body: JSON.stringify({ username: username })
         });
         if (challengeResponse.ok) {
-            const challengeData = await challengeResponse.json();
-            webauthnAvailable = true;
-            // Starte WebAuthn automatisch
-            performWebAuthnLogin(username, challengeData);
+            webauthnChallengeData = await challengeResponse.json();
+            document.getElementById('webauthn-btn').style.display = 'block';
         } else {
-            // WebAuthn nicht verfügbar, zeige Passwort-Feld
-            webauthnAvailable = false;
-            document.getElementById('password-group').style.display = 'block';
-            document.getElementById('login-btn').style.display = 'block';
+            document.getElementById('webauthn-btn').style.display = 'none';
         }
     } catch (error) {
-        // Fehler, zeige Passwort
-        webauthnAvailable = false;
-        document.getElementById('password-group').style.display = 'block';
-        document.getElementById('login-btn').style.display = 'block';
+        document.getElementById('webauthn-btn').style.display = 'none';
+    }
+});
+
+document.getElementById('webauthn-btn').addEventListener('click', function() {
+    const username = document.getElementById('username').value.trim();
+    if (webauthnChallengeData && username) {
+        performWebAuthnLogin(username, webauthnChallengeData);
     }
 });
 
@@ -186,15 +189,10 @@ async function performWebAuthnLogin(username, challengeData) {
             window.location.href = 'dashboard';
         } else {
             alert(verifyData.error || 'Authentifizierung fehlgeschlagen');
-            // Fallback zu Passwort
-            document.getElementById('password-group').style.display = 'block';
-            document.getElementById('login-btn').style.display = 'block';
         }
     } catch (error) {
         console.error('WebAuthn error:', error);
-        // Fallback zu Passwort
-        document.getElementById('password-group').style.display = 'block';
-        document.getElementById('login-btn').style.display = 'block';
+        alert('WebAuthn Fehler: ' + error.message);
     }
 }
 
