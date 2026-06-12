@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             $stmt->close();
-        } else { set_flash_message(lang('error_invalid_data'), 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => lang('error_invalid_data')]; }}
+        } else { set_flash_message(lang('error_invalid_data'), 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'error_invalid_data']; }}
         $action_taken = true;
     }
 
@@ -46,14 +46,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $delete_result = delete_file_permanently($conn, $file_id_to_delete, $current_user_id, $current_user_role);
             set_flash_message($delete_result['message_key'], $delete_result['success'] ? 'success' : 'error', $delete_result['message_args']);
             if ($ajax_mode) {
-                $ajax_response = ['success' => $delete_result['success'], 'message' => lang($delete_result['message_key'], ...(isset($delete_result['message_args']) ? $delete_result['message_args'] : [])), 'action' => 'delete_permanently', 'data' => ['file_id' => $file_id_to_delete]];
+                $ajax_response = ['success' => $delete_result['success'], 'message' => $delete_result['message_key'], 'action' => 'delete_permanently', 'data' => ['file_id' => $file_id_to_delete], 'message_args' => isset($delete_result['message_args']) && is_array($delete_result['message_args']) ? $delete_result['message_args'] : []];
             }
-        } else { set_flash_message(lang('error_invalid_data'), 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => lang('error_invalid_data')]; }}
+        } else { set_flash_message(lang('error_invalid_data'), 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'error_invalid_data']; }}
         $action_taken = true;
     }
 
     if ($action_taken) {
         if ($ajax_mode) {
+            // Use output buffer to protect JSON response
+            ob_start();
+            try {
+                // Ensure message is a string
+                if (function_exists('lang') && isset($ajax_response['message']) && preg_match('/^[a-z_]+$/', $ajax_response['message'])) {
+                    $args = isset($ajax_response['message_args']) && is_array($ajax_response['message_args']) ? $ajax_response['message_args'] : [];
+                    $ajax_response['message'] = call_user_func_array('lang', array_merge([$ajax_response['message']], $args));
+                    unset($ajax_response['message_args']);
+                }
+            } catch (Throwable $e) {
+                error_log('Error translating message: ' . $e->getMessage());
+            }
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode($ajax_response);
             exit;
@@ -88,13 +101,13 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
         <thead><tr><th>Dateiname</th><th>Hochgeladen am</th><th>Größe</th><th>Hochgeladen von</th><th>Status</th><th>Aktionen</th></tr></thead>
         <tbody>
              <?php if (empty($files)) { echo '<tr><td colspan="6">Keine gelöschten Dateien gefunden.</td></tr>'; } else { foreach ($files as $file) { ?>
-             <tr>
+             <tr class="file-row" data-file-id="<?php echo $file['id']; ?>">
                  <td><a href="view_file?id=<?php echo $file['id']; ?>" title="<?php echo htmlspecialchars($file['filename']); ?>"><?php echo shorten_filename($file['filename']); ?></a></td>
                  <td><?php echo format_date_lang($file['created_at']); ?></td><td><?php echo format_bytes($file['size']); ?></td><td><?php echo htmlspecialchars(isset($file['uploader_username']) ? $file['uploader_username'] : 'Unbekannt'); ?></td>
                  <td><span class="status-label <?php echo $file['public'] ? 'status-public' : 'status-private'; ?>"><?php echo $file['public'] ? 'Öffentlich' : 'Privat'; ?></span></td>
                  <td class="actions-cell"> <a href="view_file?id=<?php echo $file['id']; ?>" class="action-button view-button" title="Ansehen">👁️</a>
                      <form method="post" action="all_deleted_files?search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="restore_file" value="1"><button type="submit" name="restore_file" class="action-button" title="Wiederherstellen" style="background-color: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px;">↩️</button></form>
-                     <form method="post" action="all_deleted_files?search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;" onsubmit="return confirm('Datei endgültig löschen?');"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="delete_permanently" value="1"><button type="submit" name="delete_permanently" class="action-button delete-button" title="Endgültig löschen">🗑️</button></form>
+                     <form method="post" action="all_deleted_files?search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;" data-custom-confirm="Datei endgültig löschen?"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="delete_permanently" value="1"><button type="submit" name="delete_permanently" class="action-button delete-button" title="Endgültig löschen">🗑️</button></form>
                 </td>
              </tr>
              <?php }} ?>

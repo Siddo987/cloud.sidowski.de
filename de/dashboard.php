@@ -11,56 +11,72 @@ if (!$is_logged_in) { redirect($current_language . '/login'); }
 // --- POST Handling ZUERST ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf_token(); // CSRF prüfen
+    // Debug-Log: Rohes POST zur Analyse (einmalig aktivieren wenn nötig)
+    error_log("dashboard POST: " . var_export($_POST, true));
 
     $action_taken = false; // Flag
     $ajax_mode = isset($_POST['ajax']) && $_POST['ajax'] === '1';
     $ajax_response = ['success' => false, 'message' => '', 'action' => null, 'data' => null];
+    $redirect_url = $current_language . '/dashboard';
 
     // Datei löschen (soft delete)
     if (isset($_POST['delete_file'])) {
         $file_id_to_delete = filter_input(INPUT_POST, 'file_id', FILTER_VALIDATE_INT);
         if ($file_id_to_delete) {
-            $stmt = $conn->prepare("UPDATE files SET deleted = 1 WHERE id = ? AND uploader_id = ? AND deleted = 0");
-            $stmt->bind_param("ii", $file_id_to_delete, $current_user_id);
-            if ($stmt->execute()) {
-                set_flash_message('Datei erfolgreich in den Papierkorb verschoben', 'success');
-                if ($ajax_mode) {
-                    $ajax_response = ['success' => true, 'message' => 'Datei erfolgreich in den Papierkorb verschoben', 'action' => 'delete_file', 'data' => ['file_id' => $file_id_to_delete]];
+            if (check_file_permission($conn, $file_id_to_delete, $current_user_id, $current_user_role)) {
+                $stmt = $conn->prepare("UPDATE files SET deleted = 1 WHERE id = ? AND deleted = 0");
+                $stmt->bind_param("i", $file_id_to_delete);
+                if ($stmt->execute()) {
+                    if (!$ajax_mode) {
+                        set_flash_message('Datei erfolgreich in den Papierkorb verschoben', 'success');
+                    }
+                    if ($ajax_mode) {
+                        $ajax_response = ['success' => true, 'message' => 'Datei erfolgreich verschoben', 'action' => 'delete_file', 'data' => ['file_id' => $file_id_to_delete]];
+                    }
+                } else {
+                    if (!$ajax_mode) {
+                        set_flash_message('Fehler beim Löschen der Datei', 'error');
+                    }
+                    if ($ajax_mode) {
+                        $ajax_response = ['success' => false, 'message' => 'Fehler beim Löschen der Datei'];
+                    }
                 }
+                $stmt->close();
             } else {
-                set_flash_message('Fehler beim Löschen der Datei', 'error');
+                set_flash_message(lang('error_no_permission'), 'error');
                 if ($ajax_mode) {
-                    $ajax_response = ['success' => false, 'message' => 'Fehler beim Löschen der Datei'];
+                    $ajax_response = ['success' => false, 'message' => 'Keine Berechtigung'];
                 }
             }
-            $stmt->close();
-        } else {
-            set_flash_message('Ungültige Daten', 'error');
-            if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Ungültige Daten']; }
-        }
+        } else { set_flash_message(lang('error_invalid_data'), 'error'); }
         $action_taken = true;
     }
 
-    // Status ändern (Public/Private)
+    // Status ändern
     if (isset($_POST['toggle_public_status'])) {
         $file_id_toggle = filter_input(INPUT_POST, 'file_id', FILTER_VALIDATE_INT);
         $current_status = filter_input(INPUT_POST, 'current_status', FILTER_VALIDATE_INT);
         $current_status_int = is_numeric($current_status) ? (int)$current_status : null;
         error_log("Dashboard TogglePublic: file_id={$file_id_toggle}, current_status_raw=" . var_export($current_status, true) . ", normalized=" . var_export($current_status_int, true));
+
         if ($file_id_toggle && ($current_status_int === 0 || $current_status_int === 1)) {
+            // Explizite Berechtigungsprüfung (eigene Datei oder Admin)
             if (check_file_permission($conn, $file_id_toggle, $current_user_id, $current_user_role)) {
-                 $new_status = 1 - $current_status_int;
-                 $update_query = $conn->prepare("UPDATE files SET public = ? WHERE id = ?");
-                 if ($update_query) {
+                $new_status = 1 - $current_status_int;
+                $update_query = $conn->prepare("UPDATE files SET public = ? WHERE id = ?");
+                if ($update_query) {
                     $update_query->bind_param("ii", $new_status, $file_id_toggle);
-                            if ($update_query->execute()) {
-                        set_flash_message('success_status_changed', 'success');
+                    if ($update_query->execute()) {
+                        if (!$ajax_mode) {
+                            set_flash_message(lang('success_status_changed'), 'success');
+                        }
                         if ($ajax_mode) {
                             $file_info_stmt = $conn->prepare("SELECT f.filename, f.created_at, f.size, f.uploader_id, f.public, u.username AS uploader_username FROM files f LEFT JOIN users u ON f.uploader_id = u.id WHERE f.id = ?");
                             if ($file_info_stmt) {
                                 $file_info_stmt->bind_param('i', $file_id_toggle);
                                 $file_info_stmt->execute();
-                                $file_info = $file_info_stmt->get_result()->fetch_assoc();
+                                $file_result = $file_info_stmt->get_result();
+                                $file_info = $file_result ? $file_result->fetch_assoc() : null;
                                 $file_info_stmt->close();
                             } else {
                                 $file_info = null;
@@ -75,11 +91,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 ], $file_info ? $file_info : [])
                             ];
                         }
-                    } else { set_flash_message('error_db_update', 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Fehler bei Update']; } error_log("DB Update Error (dashboard toggle): " . $update_query->error); }
+                    } else {
+                        if (!$ajax_mode) {
+                            set_flash_message(lang('error_db_update'), 'error');
+                        }
+                        error_log("DB Update Error (dashboard toggle): " . $update_query->error);
+                        if ($ajax_mode) {
+                            $ajax_response = ['success' => false, 'message' => 'Fehler beim Ändern des Status'];
+                        }
+                    }
                     $update_query->close();
-                } else { set_flash_message('error_db_prepare', 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Datenbankfehler']; } error_log("DB Prepare Error (dashboard toggle): " . $conn->error); }
-            } else { set_flash_message('error_no_permission', 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Keine Berechtigung']; } }
-        } else { set_flash_message('error_invalid_data', 'error'); if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Ungültige Daten']; } }
+                } else {
+                    set_flash_message(lang('error_db_prepare'), 'error');
+                    error_log("DB Prepare Error (dashboard toggle): " . $conn->error);
+                    if ($ajax_mode) {
+                        $ajax_response = ['success' => false, 'message' => 'Datenbankfehler'];
+                    }
+                }
+            } else {
+                set_flash_message(lang('error_no_permission'), 'error');
+                if ($ajax_mode) {
+                    $ajax_response = ['success' => false, 'message' => 'Keine Berechtigung'];
+                }
+            }
+        } else {
+            set_flash_message(lang('error_invalid_data'), 'error');
+            if ($ajax_mode) {
+                $ajax_response = ['success' => false, 'message' => 'Ungültige Daten'];
+            }
+        }
         $action_taken = true;
     }
 
@@ -88,26 +128,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $file_id_rename = filter_input(INPUT_POST, 'file_id', FILTER_VALIDATE_INT);
         $new_filename = trim(isset($_POST['new_filename']) ? $_POST['new_filename'] : '');
         if ($file_id_rename && !empty($new_filename)) {
+            // Berechtigung prüfen (eigene Datei oder Admin)
             if (check_file_permission($conn, $file_id_rename, $current_user_id, $current_user_role)) {
-                // Validiere Dateiname (erlaube Buchstaben, Zahlen, Punkte, Bindestriche, Unterstriche, Klammern, Leerzeichen)
+                // Validiere Dateiname
                 if (preg_match('/^[a-zA-Z0-9._\-\s\(\)]+$/', $new_filename) && strlen($new_filename) <= 255) {
                     $stmt = $conn->prepare("UPDATE files SET filename = ? WHERE id = ?");
                     $stmt->bind_param('si', $new_filename, $file_id_rename);
                     if ($stmt->execute()) {
                         set_flash_message('Datei erfolgreich umbenannt', 'success');
-                        if ($ajax_mode) { $ajax_response = ['success' => true, 'message' => 'Datei erfolgreich umbenannt', 'action' => 'rename_file', 'data' => ['file_id' => $file_id_rename, 'new_name' => $new_filename]]; }
+                        if ($ajax_mode) {
+                            $ajax_response = ['success' => true, 'message' => 'Datei erfolgreich umbenannt', 'action' => 'rename_file', 'data' => ['file_id' => $file_id_rename, 'new_name' => $new_filename]];
+                        }
                     } else {
                         set_flash_message('Fehler beim Umbenennen', 'error');
-                        if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Fehler beim Umbenennen']; }
+                        if ($ajax_mode) {
+                            $ajax_response = ['success' => false, 'message' => 'Fehler beim Umbenennen'];
+                        }
                     }
                     $stmt->close();
                 } else {
                     set_flash_message('Ungültiger Dateiname', 'error');
-                    if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Ungültiger Dateiname']; }
                 }
             } else {
                 set_flash_message('error_no_permission', 'error');
-                if ($ajax_mode) { $ajax_response = ['success' => false, 'message' => 'Keine Berechtigung']; }
             }
         } else {
             set_flash_message('error_invalid_data', 'error');
@@ -118,11 +161,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Nur redirecten, wenn eine Aktion behandelt wurde
     if ($action_taken) {
         if ($ajax_mode) {
+            // Use output buffer to protect JSON response
+            ob_start();
+            try {
+                // Ensure message is a string
+                if (function_exists('lang') && isset($ajax_response['message']) && preg_match('/^[a-z_]+$/', $ajax_response['message'])) {
+                    $ajax_response['message'] = lang($ajax_response['message']);
+                }
+            } catch (Throwable $e) {
+                error_log('Error translating message: ' . $e->getMessage());
+            }
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode($ajax_response);
             exit;
         }
-        redirect($current_language . '/dashboard');
+        redirect($redirect_url);
     }
 }
 // --- ENDE POST Handling ---
@@ -177,10 +231,21 @@ require_once __DIR__ . '/../includes/header.php';
                     <td><span class="status-label <?php echo $file['public'] ? 'status-public' : 'status-private'; ?>"><?php echo $file['public'] ? lang('status_public') : lang('status_private'); ?></span></td>
                     <td class="actions-cell">
                         <a href="view_file?id=<?php echo $file['id']; ?>" class="action-button view-button" title="<?php echo lang('button_view'); ?>">👁️</a>
-                        <form method="post" action="dashboard" class="ajax-action" style="display:inline;"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="current_status" value="<?php echo $file['public']; ?>"><input type="hidden" name="toggle_public_status" value="1"><button type="submit" name="toggle_public_status" class="action-button <?php echo $file['public'] ? 'private-button' : 'public-button'; ?>" title="<?php echo $file['public'] ? lang('button_make_private') : lang('button_make_public'); ?>"><?php echo $file['public'] ? '🔒' : '🌍'; ?></button></form>
+                        <form method="post" action="dashboard" class="ajax-action" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                            <input type="hidden" name="file_id" value="<?php echo $file['id']; ?>">
+                            <input type="hidden" name="current_status" value="<?php echo $file['public']; ?>">
+                            <input type="hidden" name="toggle_public_status" value="1">
+                            <button type="submit" name="toggle_public_status" class="action-button <?php echo $file['public'] ? 'private-button' : 'public-button'; ?>" title="<?php echo $file['public'] ? lang('button_make_private') : lang('button_make_public'); ?>"><?php echo $file['public'] ? '🔒' : '🌍'; ?></button>
+                        </form>
                         <a href="download?id=<?php echo $file['id']; ?>" class="action-button download-button" title="<?php echo lang('button_download'); ?>">💾</a>
                         <button onclick="renameFile(<?php echo $file['id']; ?>, '<?php echo addslashes($file['filename']); ?>')" class="action-button" title="Umbenennen">✏️</button>
-                        <form method="post" action="dashboard" class="ajax-action" style="display:inline;" onsubmit="return confirm('<?php printf(lang('text_confirm_delete_file'), htmlspecialchars(addslashes($file['filename']))); ?>');"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="delete_file" value="1"><button type="submit" name="delete_file" class="action-button delete-button" title="<?php echo lang('button_delete'); ?>">🗑️</button></form>
+                        <form method="post" action="dashboard" class="ajax-action" style="display:inline;" data-custom-confirm="<?php printf(lang('text_confirm_delete_file'), htmlspecialchars(addslashes($file['filename']))); ?>">
+                            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                            <input type="hidden" name="file_id" value="<?php echo $file['id']; ?>">
+                            <input type="hidden" name="delete_file" value="1">
+                            <button type="submit" name="delete_file" class="action-button delete-button" title="<?php echo lang('button_delete'); ?>">🗑️</button>
+                        </form>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -208,7 +273,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if (empty($public_files)): ?>
             <tr><td colspan="6"><?php echo lang('text_no_files_found'); ?></td></tr>
         <?php else: ?>
-            <?php foreach ($public_files as $file): $user_can_manage = ($file['uploader_id'] == $current_user_id || $is_admin); ?>
+            <?php foreach ($public_files as $file): ?>
             <tr class="file-row" data-file-id="<?php echo $file['id']; ?>">
                 <td class="filename-cell"><a href="view_file?id=<?php echo $file['id']; ?>" title="<?php echo htmlspecialchars($file['filename']); ?>"><?php echo shorten_filename($file['filename']); ?></a></td>
                 <td><?php echo format_date_lang($file['created_at']); ?></td>
@@ -217,12 +282,25 @@ require_once __DIR__ . '/../includes/header.php';
                 <td><span class="status-label status-public"><?php echo lang('status_public'); ?></span></td>
                 <td class="actions-cell">
                      <a href="view_file?id=<?php echo $file['id']; ?>" class="action-button view-button" title="<?php echo lang('button_view'); ?>">👁️</a>
-                     <?php if ($user_can_manage): ?>
-                        <form method="post" action="dashboard" class="ajax-action" style="display:inline;"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="current_status" value="1"><input type="hidden" name="toggle_public_status" value="1"><button type="submit" name="toggle_public_status" class="action-button private-button" title="<?php echo lang('button_make_private'); ?>">🔒</button></form>
-                        <button onclick="renameFile(<?php echo $file['id']; ?>, '<?php echo addslashes($file['filename']); ?>')" class="action-button" title="Umbenennen">✏️</button>
-                        <form method="post" action="dashboard" class="ajax-action" style="display:inline;" onsubmit="return confirm('<?php printf(lang('text_confirm_delete_file'), htmlspecialchars(addslashes($file['filename']))); ?>');"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="delete_file" value="1"><button type="submit" name="delete_file" class="action-button delete-button" title="<?php echo lang('button_delete'); ?>">🗑️</button></form>
+                     <?php if ($file['uploader_id'] == $current_user_id || $is_admin): ?>
+                     <form method="post" action="dashboard" class="ajax-action" style="display:inline;">
+                         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                         <input type="hidden" name="file_id" value="<?php echo $file['id']; ?>">
+                         <input type="hidden" name="current_status" value="<?php echo $file['public']; ?>">
+                         <input type="hidden" name="toggle_public_status" value="1">
+                         <button type="submit" name="toggle_public_status" class="action-button <?php echo $file['public'] ? 'private-button' : 'public-button'; ?>" title="<?php echo $file['public'] ? lang('button_make_private') : lang('button_make_public'); ?>"><?php echo $file['public'] ? '🔒' : '🌍'; ?></button>
+                     </form>
                      <?php endif; ?>
                      <a href="download?id=<?php echo $file['id']; ?>" class="action-button download-button" title="<?php echo lang('button_download'); ?>">💾</a>
+                     <?php if ($file['uploader_id'] == $current_user_id || $is_admin): ?>
+                     <button onclick="renameFile(<?php echo $file['id']; ?>, '<?php echo addslashes($file['filename']); ?>')" class="action-button" title="Umbenennen">✏️</button>
+                     <form method="post" action="dashboard" class="ajax-action" style="display:inline;" data-custom-confirm="<?php printf(lang('text_confirm_delete_file'), htmlspecialchars(addslashes($file['filename']))); ?>">
+                         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                         <input type="hidden" name="file_id" value="<?php echo $file['id']; ?>">
+                         <input type="hidden" name="delete_file" value="1">
+                         <button type="submit" name="delete_file" class="action-button delete-button" title="<?php echo lang('button_delete'); ?>">🗑️</button>
+                     </form>
+                     <?php endif; ?>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -250,5 +328,27 @@ function renameFile(fileId, currentName) {
             ajax: '1'
         });
     }
+}
+
+// Kompatibilität: Sicherstelle dass postAjaxAction global verfügbar ist
+if (typeof postAjaxAction === 'undefined') {
+    window.postAjaxAction = function(actionData) {
+        const endpoint = window.location.pathname;
+        return fetch(endpoint, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'}, 
+            body: new URLSearchParams(actionData) 
+        })
+        .then(response => response.text())
+        .then(text => {
+            try { 
+                const data = JSON.parse(text); 
+                if (window.handleAjaxResponse) handleAjaxResponse(data); 
+            } catch (e) { 
+                console.error('AJAX JSON Fehler:', e); 
+            } 
+        })
+        .catch(error => console.error('AJAX Fehler:', error));
+    };
 }
 </script>

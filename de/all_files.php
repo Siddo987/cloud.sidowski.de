@@ -118,6 +118,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action_taken) {
         if ($ajax_mode) {
+            // Use output buffer to protect JSON response
+            ob_start();
+            try {
+                // Ensure message is a string
+                if (function_exists('lang') && isset($ajax_response['message']) && preg_match('/^[a-z_]+$/', $ajax_response['message'])) {
+                    $ajax_response['message'] = lang($ajax_response['message']);
+                }
+            } catch (Throwable $e) {
+                error_log('Error translating message: ' . $e->getMessage());
+            }
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode($ajax_response);
             exit;
@@ -192,7 +203,8 @@ require_once __DIR__ . '/../includes/header.php';
                                 <a href="view_file?id=<?php echo $file['id']; ?>" class="action-button view-button" title="Ansehen">👁️</a>
                                 <form method="post" action="all_files?search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="current_status" value="<?php echo $file['public']; ?>"><input type="hidden" name="toggle_public_status" value="1"><button type="submit" name="toggle_public_status" class="action-button <?php echo $file['public'] ? 'private-button' : 'public-button'; ?>" title="<?php echo $file['public'] ? 'Privat machen' : 'Öffentlich machen'; ?>"><?php echo $file['public'] ? '🔒' : '🌍'; ?></button></form>
                                 <a href="download?id=<?php echo $file['id']; ?>" class="action-button download-button" title="Herunterladen">💾</a>
-                                <form method="post" action="all_files?search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;" onsubmit="return confirm('Datei wirklich löschen?');"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="delete_file" value="1"><button type="submit" name="delete_file" class="action-button delete-button" title="Löschen">🗑️</button></form>
+                                <button onclick="renameFile(<?php echo $file['id']; ?>, '<?php echo addslashes($file['filename']); ?>')" class="action-button" title="Umbenennen">✏️</button>
+                                <form method="post" action="all_files?search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;" data-custom-confirm="<?php printf(lang('text_confirm_delete_file'), htmlspecialchars(addslashes($file['filename']))); ?>"><input type="hidden" name="ajax" value="1"><input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>"><input type="hidden" name="file_id" value="<?php echo $file['id']; ?>"><input type="hidden" name="delete_file" value="1"><button type="submit" name="delete_file" class="action-button delete-button" title="Löschen">🗑️</button></form>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -201,6 +213,21 @@ require_once __DIR__ . '/../includes/header.php';
         </table>
     </div>
 </div>
+
+<script>
+function renameFile(fileId, currentName) {
+    const newName = prompt('Neuer Dateiname:', currentName);
+    if (newName && newName !== currentName) {
+        postAjaxAction({
+            csrf_token: '<?php echo csrf_token(); ?>',
+            rename_file: '1',
+            file_id: fileId,
+            new_filename: newName,
+            ajax: '1'
+        });
+    }
+}
+</script>
 
 <?php
 require_once __DIR__ . '/../includes/footer.php';

@@ -148,7 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 if ($file_info_stmt) {
                                     $file_info_stmt->bind_param('i', $file_id_toggle);
                                     $file_info_stmt->execute();
-                                    $file_info = $file_info_stmt->get_result()->fetch_assoc();
+                                    $file_result = $file_info_stmt->get_result();
+                                    $file_info = $file_result ? $file_result->fetch_assoc() : null;
                                     $file_info_stmt->close();
                                 } else {
                                     $file_info = null;
@@ -389,6 +390,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action_taken) {
         if ($ajax_mode) {
+            // Use output buffer to protect JSON response
+            ob_start();
+            try {
+                // Ensure message is a string
+                if (function_exists('lang') && isset($ajax_response['message']) && preg_match('/^[a-z_]+$/', $ajax_response['message'])) {
+                    $ajax_response['message'] = lang($ajax_response['message']);
+                }
+            } catch (Throwable $e) {
+                error_log('Error translating message: ' . $e->getMessage());
+            }
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode($ajax_response);
             exit;
@@ -519,7 +531,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
             </thead>
             <tbody>
                 <?php if (empty($folders) && empty($files)) { ?>
-                    <tr><td colspan="5"><?php echo lang('text_no_files'); ?></td></tr>
+                    <tr><td colspan="5"><?php echo lang('text_no_files_found'); ?></td></tr>
                 <?php } else { ?>
                     <?php foreach ($folders as $folder): ?>
                         <tr class="folder-row" data-folder-id="<?php echo $folder['id']; ?>">
@@ -614,58 +626,7 @@ function showAjaxFlash(message, type) {
     setTimeout(() => { flashContainer.innerHTML = ''; }, 3000);
 }
 
-function customConfirm(message) {
-    return new Promise((resolve) => {
-        // Modal erstellen
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.innerHTML = `
-            <div class="modal-content" style="text-align: center; padding: 2rem;">
-                <div style="font-size: 3rem; color: #dc3545; margin-bottom: 1rem;">⚠️</div>
-                <p style="font-size: 1.1rem; margin-bottom: 2rem;">${message}</p>
-                <div style="display: flex; justify-content: center; gap: 1rem;">
-                    <button class="button button-primary" id="confirm-yes" style="min-width: 100px;">Ja</button>
-                    <button class="button button-secondary" id="confirm-no" style="min-width: 100px;">Nein</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
 
-        // Modal öffnen
-        modal.classList.add('open');
-        modal.setAttribute('aria-hidden', 'false');
-
-        // Event-Listener
-        const yesBtn = modal.querySelector('#confirm-yes');
-        const noBtn = modal.querySelector('#confirm-no');
-
-        const closeModal = () => {
-            modal.classList.remove('open');
-            modal.setAttribute('aria-hidden', 'true');
-            setTimeout(() => modal.remove(), 300);
-        };
-
-        yesBtn.addEventListener('click', () => {
-            closeModal();
-            resolve(true);
-        });
-
-        noBtn.addEventListener('click', () => {
-            closeModal();
-            resolve(false);
-        });
-
-        // ESC schließen
-        const escHandler = (e) => {
-            if (e.key === 'Escape') {
-                closeModal();
-                resolve(false);
-                document.removeEventListener('keydown', escHandler);
-            }
-        };
-        document.addEventListener('keydown', escHandler);
-    });
-}
 
 function handleAjaxResponse(data) {
     if (!data) {
@@ -810,40 +771,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // AJAX-Formulare abfangen und inline bearbeiten
-    const ajaxForms = document.querySelectorAll('form.ajax-action');
-    ajaxForms.forEach(form => {
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            // Bestätigung prüfen
-            const confirmMessage = this.getAttribute('data-custom-confirm');
-            if (confirmMessage) {
-                const confirmed = await customConfirm(confirmMessage);
-                if (!confirmed) {
-                    return; // Abbrechen wenn nicht bestätigt
-                }
-            }
-            const formData = new FormData(this);
-            if (!formData.has('ajax')) {
-                formData.append('ajax', '1');
-            }
-            const payload = new URLSearchParams();
-            for (const [key, value] of formData.entries()) {
-                payload.append(key, value);
-            }
-            fetch(this.action, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: payload
-            })
-            .then(res => res.json())
-            .then(data => handleAjaxResponse(data))
-            .catch(err => {
-                console.error('AJAX-Formular Fehler:', err);
-                showAjaxFlash('Ein Netzwerkfehler ist aufgetreten.', 'error');
-            });
-        });
-    });
 
     // Ordner-Zeilen als droppable machen
     folderRows.forEach(row => {

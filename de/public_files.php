@@ -109,6 +109,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action_taken) {
         if ($ajax_mode) {
+            // Use output buffer to protect JSON response
+            ob_start();
+            try {
+                // Ensure message is a string
+                if (function_exists('lang') && isset($ajax_response['message']) && preg_match('/^[a-z_]+$/', $ajax_response['message'])) {
+                    $ajax_response['message'] = lang($ajax_response['message']);
+                }
+            } catch (Throwable $e) {
+                error_log('Error translating message: ' . $e->getMessage());
+            }
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode($ajax_response);
             exit;
@@ -142,7 +153,9 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
     <div class="table-container"><table>
         <thead><tr><th><?php echo lang('th_filename'); ?></th><th><?php echo lang('th_upload_date'); ?></th><th><?php echo lang('th_uploader'); ?></th><th><?php echo lang('th_size'); ?></th><th><?php echo lang('th_status'); ?></th><th><?php echo lang('th_actions'); ?></th></tr></thead>
         <tbody>
-             <?php if (empty($files)) { /* ... */ } else { foreach ($files as $file) { $user_can_manage = ($file['uploader_id'] == $current_user_id || $is_admin); ?>
+             <?php if (empty($files)) { ?>
+                 <tr><td colspan="6"><?php echo lang('text_no_files_found'); ?></td></tr>
+             <?php } else { foreach ($files as $file) { $user_can_manage = ($file['uploader_id'] == $current_user_id || $is_admin); ?>
              <tr class="file-row" data-file-id="<?php echo $file['id']; ?>">
                  <td class="filename-cell"><a href="view_file?id=<?php echo $file['id']; ?>" title="<?php echo htmlspecialchars($file['filename']); ?>"><?php echo shorten_filename($file['filename']); ?></a></td>
                  <td><?php echo format_date_lang($file['created_at']); ?></td><td><?php echo $file['uploader_username'] ? htmlspecialchars($file['uploader_username']) : get_username_by_id($conn, $file['uploader_id']); ?></td><td><?php echo format_bytes($file['size']); ?></td>

@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             set_flash_message('error_invalid_data', 'error');
             if ($ajax_mode) {
-                $ajax_response = ['success' => false, 'message' => lang('error_invalid_data')];
+                $ajax_response = ['success' => false, 'message' => 'error_invalid_data'];
             }
         }
         $action_taken = true;
@@ -152,13 +152,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 if ($delete_stmt->execute()) {
                                     set_flash_message('success_user_deleted', 'success', [htmlspecialchars($user_to_delete['username'])]);
                                     if ($ajax_mode) {
-                                        $ajax_response = ['success' => true, 'message' => lang('success_user_deleted', htmlspecialchars($user_to_delete['username'])), 'action' => 'delete_user', 'data' => ['user_id' => $user_id_to_delete]];
+                                        $ajax_response = ['success' => true, 'message' => 'success_user_deleted', 'action' => 'delete_user', 'data' => ['user_id' => $user_id_to_delete], 'message_args' => [htmlspecialchars($user_to_delete['username'])]];
                                     }
                                 } else {
                                     set_flash_message('error_db_delete', 'error');
                                     error_log("DB Delete Error (user): " . $delete_stmt->error);
                                     if ($ajax_mode) {
-                                        $ajax_response = ['success' => false, 'message' => lang('error_db_delete')];
+                                        $ajax_response = ['success' => false, 'message' => 'error_db_delete'];
                                     }
                                 }
                                 $delete_stmt->close();
@@ -183,6 +183,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action_taken) {
         if ($ajax_mode) {
+            // Use output buffer to protect JSON response
+            ob_start();
+            try {
+                // Ensure message is a string
+                if (function_exists('lang') && isset($ajax_response['message']) && preg_match('/^[a-z_]+$/', $ajax_response['message'])) {
+                    $args = isset($ajax_response['message_args']) && is_array($ajax_response['message_args']) ? $ajax_response['message_args'] : [];
+                    $ajax_response['message'] = call_user_func_array('lang', array_merge([$ajax_response['message']], $args));
+                    unset($ajax_response['message_args']);
+                }
+            } catch (Throwable $e) {
+                error_log('Error translating message: ' . $e->getMessage());
+            }
+            ob_end_clean();
             header('Content-Type: application/json');
             echo json_encode($ajax_response);
             exit;
