@@ -3,43 +3,20 @@
 
 // Alle Ausgaben unterdrücken, um saubere binary Response zu gewährleisten
 ini_set('display_errors', 0);
-error_reporting(0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/download_error.log');
+ini_set('zlib.output_compression', 'Off');
+error_reporting(E_ALL);
 ob_start(); // Output-Buffer starten
 
-// Konfiguration laden
-require_once __DIR__ . '/../config/config.php';
-
-// Zeitzone setzen
-date_default_timezone_set('Europe/Berlin');
-
-// Session starten, falls nicht bereits geschehen
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// Datenbankverbindung herstellen
-$conn = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
-if ($conn->connect_error) {
-    // Bei DB-Fehler zur Dashboard weiterleiten
-    header("Location: " . (defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : '') . '/de/dashboard');
-    exit();
-}
-$conn->set_charset("utf8");
-
-// Output-Buffer leeren, um sicherzustellen, dass nichts vor den Headern ausgegeben wird
-while (ob_get_level()) {
-    ob_end_clean();
-}
+// Konfiguration und Umgebung laden (dies stellt auch die DB-Verbindung $conn her)
+require_once __DIR__ . '/../config/bootstrap.php';
 
 // Login-Status prüfen
-$is_logged_in = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
 if (!$is_logged_in) {
     header("Location: " . (defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : '') . '/de/login');
     exit();
 }
-
-$current_user_id = (int)$_SESSION['user_id'];
-$is_admin = isset($_SESSION['role']) && in_array(strtolower($_SESSION['role']), ['admin', 'owner']);
 
 // Datei-ID aus GET-Parameter holen und validieren
 $file_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
@@ -92,6 +69,11 @@ $file_path = $user_upload_dir . '/' . basename($file['filename']);
 if (!file_exists($file_path) || !is_readable($file_path)) {
     header("Location: " . (defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : '') . '/de/dashboard');
     exit();
+}
+
+// Output-Buffer leeren, um sicherzustellen, dass nichts vor den Headern ausgegeben wird
+while (ob_get_level()) {
+    ob_end_clean();
 }
 
 // HTTP-Header für den Download setzen
