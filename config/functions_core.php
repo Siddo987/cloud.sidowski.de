@@ -371,13 +371,15 @@ function check_file_permission($conn, $file_id, $user_id, $role) {
 function delete_file_permanently($conn, $file_id, $current_user_id, $current_user_role) {
     $role_lower = strtolower($current_user_role);
 
-    // 1. Datei-Infos holen
-    $fetch_stmt = $conn->prepare("SELECT filename, uploader_id FROM files WHERE id = ?");
-    if (!$fetch_stmt) { error_log("DB Prep Err (del/sel): ".$conn->error); return ['success' => false, 'message_key' => 'error_db_prepare', 'message_args' => []]; }
-    $fetch_stmt->bind_param("i", $file_id); $fetch_stmt->execute(); $result = $fetch_stmt->get_result(); $file_info = $result->fetch_assoc(); $fetch_stmt->close();
-    if (!$file_info) return ['success' => false, 'message_key' => 'error_file_not_found', 'message_args' => [$file_id]];
-
-    $filename_to_delete = $file_info['filename']; $uploader_id_of_file = $file_info['uploader_id'];
+    // 1. Hole Dateidetails
+    $info_stmt = $conn->prepare("SELECT filename, uploader_id, physical_path FROM files WHERE id = ?");
+    if (!$info_stmt) { error_log("DB Prep Err (del/info): ".$conn->error); return ['success' => false, 'message_key' => 'error_db_prepare', 'message_args' => []]; }
+    $info_stmt->bind_param("i", $file_id); $info_stmt->execute(); $info_res = $info_stmt->get_result(); $file_info = $info_res->fetch_assoc(); $info_stmt->close();
+    if (!$file_info) { return ['success' => false, 'message_key' => 'error_file_not_found', 'message_args' => []]; }
+    
+    $filename_to_delete = $file_info['filename']; 
+    $uploader_id_of_file = $file_info['uploader_id'];
+    $physical_path = isset($file_info['physical_path']) ? $file_info['physical_path'] : null;
 
     // 2. Berechtigung prüfen
     if (!($uploader_id_of_file == $current_user_id || in_array($role_lower, ['admin', 'owner']))) {
@@ -391,7 +393,16 @@ function delete_file_permanently($conn, $file_id, $current_user_id, $current_use
     if (!$db_deleted || $affected_rows === 0) { error_log("DB Del Err (del) for file id {$file_id}: ".$conn->error); return ['success' => false, 'message_key' => 'error_db_delete', 'message_args' => []]; }
 
     // 4. Physische Datei löschen
-    $filepath_to_delete = rtrim(USER_UPLOAD_DIR, '/') . '/' . $uploader_id_of_file . '/' . basename($filename_to_delete);
+    $user_dir = rtrim(USER_UPLOAD_DIR, '/') . '/' . $uploader_id_of_file;
+    
+    if (!empty($physical_path)) {
+        $filepath_to_delete = $user_dir . '/' . $physical_path;
+    } else {
+        $new_filepath = $user_dir . '/' . $file_id . '_' . basename($filename_to_delete);
+        $old_filepath = $user_dir . '/' . basename($filename_to_delete);
+        $filepath_to_delete = file_exists($new_filepath) ? $new_filepath : $old_filepath;
+    }
+
     if (file_exists($filepath_to_delete)) {
         if (@unlink($filepath_to_delete)) {
             $user_dir = dirname($filepath_to_delete);
@@ -406,6 +417,138 @@ function delete_file_permanently($conn, $file_id, $current_user_id, $current_use
     } else {
         // Erfolg (Datei war eh weg): Schlüssel und Dateiname als Argument zurückgeben
          return ['success' => true, 'message_key' => 'success_file_deleted', 'message_args' => [$filename_to_delete]];
+    }
+}
+
+/**
+ * Permanently deletes a folder and all its contents
+ */
+function delete_folder_permanently($conn, $folder_id, $user_id, $role) {
+    // Delete files inside
+    $stmt1 = $conn->prepare("SELECT id FROM files WHERE folder_id = ? AND uploader_id = ?");
+    $stmt1->bind_param("ii", $folder_id, $user_id);
+    $stmt1->execute();
+    $res1 = $stmt1->get_result();
+    $files = $res1->fetch_all(MYSQLI_ASSOC);
+    $stmt1->close();
+
+    foreach ($files as $f) {
+        delete_file_permanently($conn, $f['id'], $user_id, $role);
+    }
+
+    // Delete subfolders inside
+    $stmt2 = $conn->prepare("SELECT id FROM folders WHERE parent_id = ? AND user_id = ?");
+    $stmt2->bind_param("ii", $folder_id, $user_id);
+    $stmt2->execute();
+    $res2 = $stmt2->get_result();
+    $subfolders = $res2->fetch_all(MYSQLI_ASSOC);
+    $stmt2->close();
+
+    foreach ($subfolders as $sub) {
+        delete_folder_permanently($conn, $sub['id'], $user_id, $role);
+    }
+
+    // Delete the folder itself
+    $stmt3 = $conn->prepare("DELETE FROM folders WHERE id = ?");
+    $stmt3->bind_param("i", $folder_id);
+    $stmt3->execute();
+    $stmt3->close();
+}
+
+/**
+ * Recursively soft-deletes a folder and all its contents
+ */
+function cascade_soft_delete_folder($conn, $folder_id, $user_id) {
+    // Soft-delete files in this folder
+    $stmt1 = $conn->prepare("UPDATE files SET deleted = 1 WHERE folder_id = ? AND uploader_id = ? AND deleted = 0");
+    $stmt1->bind_param("ii", $folder_id, $user_id);
+    $stmt1->execute();
+    $stmt1->close();
+
+    // Soft-delete subfolders in this folder
+    $stmt2 = $conn->prepare("SELECT id FROM folders WHERE parent_id = ? AND user_id = ? AND deleted = 0");
+    $stmt2->bind_param("ii", $folder_id, $user_id);
+    $stmt2->execute();
+    $res2 = $stmt2->get_result();
+    $subfolders = $res2->fetch_all(MYSQLI_ASSOC);
+    $stmt2->close();
+
+    foreach ($subfolders as $sub) {
+        $stmt3 = $conn->prepare("UPDATE folders SET deleted = 1 WHERE id = ?");
+        $stmt3->bind_param("i", $sub['id']);
+        $stmt3->execute();
+        $stmt3->close();
+        
+        cascade_soft_delete_folder($conn, $sub['id'], $user_id);
+    }
+}
+
+/**
+ * Recursively restores a folder and all its contents
+ */
+function cascade_restore_folder($conn, $folder_id, $user_id) {
+    // Restore files in this folder
+    $stmt1 = $conn->prepare("UPDATE files SET deleted = 0 WHERE folder_id = ? AND uploader_id = ? AND deleted = 1");
+    $stmt1->bind_param("ii", $folder_id, $user_id);
+    $stmt1->execute();
+    $stmt1->close();
+
+    // Restore subfolders in this folder
+    $stmt2 = $conn->prepare("SELECT id FROM folders WHERE parent_id = ? AND user_id = ? AND deleted = 1");
+    $stmt2->bind_param("ii", $folder_id, $user_id);
+    $stmt2->execute();
+    $res2 = $stmt2->get_result();
+    $subfolders = $res2->fetch_all(MYSQLI_ASSOC);
+    $stmt2->close();
+
+    foreach ($subfolders as $sub) {
+        $stmt3 = $conn->prepare("UPDATE folders SET deleted = 0 WHERE id = ?");
+        $stmt3->bind_param("i", $sub['id']);
+        $stmt3->execute();
+        $stmt3->close();
+        
+        cascade_restore_folder($conn, $sub['id'], $user_id);
+    }
+}
+
+/**
+ * Checks if a trashed folder is empty. If it is, deletes it permanently, and bubbles up.
+ */
+function cleanup_empty_trashed_folders($conn, $folder_id, $user_id) {
+    if (!$folder_id) return;
+
+    $stmt = $conn->prepare("SELECT parent_id, deleted FROM folders WHERE id = ? AND user_id = ?");
+    $stmt->bind_param("ii", $folder_id, $user_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $folder = $res->fetch_assoc();
+    $stmt->close();
+
+    if (!$folder || $folder['deleted'] == 0) return;
+
+    $stmt1 = $conn->prepare("SELECT 1 FROM files WHERE folder_id = ? LIMIT 1");
+    $stmt1->bind_param("i", $folder_id);
+    $stmt1->execute();
+    $has_files = $stmt1->get_result()->num_rows > 0;
+    $stmt1->close();
+
+    if ($has_files) return;
+
+    $stmt2 = $conn->prepare("SELECT 1 FROM folders WHERE parent_id = ? LIMIT 1");
+    $stmt2->bind_param("i", $folder_id);
+    $stmt2->execute();
+    $has_subfolders = $stmt2->get_result()->num_rows > 0;
+    $stmt2->close();
+
+    if ($has_subfolders) return;
+
+    $stmt3 = $conn->prepare("DELETE FROM folders WHERE id = ?");
+    $stmt3->bind_param("i", $folder_id);
+    $stmt3->execute();
+    $stmt3->close();
+
+    if ($folder['parent_id']) {
+        cleanup_empty_trashed_folders($conn, $folder['parent_id'], $user_id);
     }
 }
 

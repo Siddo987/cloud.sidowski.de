@@ -26,7 +26,7 @@ if (!$file_id || $file_id <= 0) {
 }
 
 // Datei-Informationen aus der Datenbank laden
-$stmt = $conn->prepare("SELECT filename, public, uploader_id, deleted, size FROM files WHERE id = ?");
+$stmt = $conn->prepare("SELECT filename, public, uploader_id, deleted, size, physical_path FROM files WHERE id = ?");
 if (!$stmt) {
     header("Location: " . (defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : '') . '/de/dashboard');
     exit();
@@ -61,9 +61,17 @@ if (!$can_download) {
     exit();
 }
 
-// Dateipfad erstellen
-$user_upload_dir = rtrim(USER_UPLOAD_DIR, '/') . '/' . (int)$file['uploader_id'];
-$file_path = $user_upload_dir . '/' . basename($file['filename']);
+// Pfad zur Datei zusammensetzen
+$user_dir = rtrim(USER_UPLOAD_DIR, '/') . '/' . $file['uploader_id'];
+
+if (!empty($file['physical_path'])) {
+    $file_path = $user_dir . '/' . $file['physical_path'];
+} else {
+    // Fallback auf alte Speichermethoden
+    $new_filepath = $user_dir . '/' . $file_id . '_' . basename($file['filename']);
+    $old_filepath = $user_dir . '/' . basename($file['filename']);
+    $file_path = file_exists($new_filepath) ? $new_filepath : $old_filepath;
+}
 
 // Prüfen, ob die Datei existiert und lesbar ist
 if (!file_exists($file_path) || !is_readable($file_path)) {

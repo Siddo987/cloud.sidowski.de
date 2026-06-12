@@ -30,14 +30,22 @@ if (isset($_GET['raw']) && $_GET['raw'] == '1') {
     if (!check_file_permission($conn, $file_id, $current_user_id, $current_user_role)) { http_response_code(403); exit('Error: Permission denied for raw output.'); }
 
     // Dateiinfos holen
-    $stmt = $conn->prepare("SELECT filename, uploader_id FROM files WHERE id = ?");
+    $stmt = $conn->prepare("SELECT filename, uploader_id, physical_path FROM files WHERE id = ?");
     if (!$stmt) { http_response_code(500); exit('Error: DB prepare failed.'); }
     $stmt->bind_param("i", $file_id); $stmt->execute(); $result = $stmt->get_result(); $file = $result->fetch_assoc(); $stmt->close();
     if (!$file) { http_response_code(404); exit('Error: File not found in database.'); }
 
     // Pfad bauen und Existenz/Lesbarkeit prüfen
     $filename = $file['filename']; $uploader_id = $file['uploader_id'];
-    $file_path = rtrim(USER_UPLOAD_DIR, '/') . '/' . $uploader_id . '/' . basename($filename);
+    $user_dir = rtrim(USER_UPLOAD_DIR, '/') . '/' . $uploader_id;
+    
+    if (!empty($file['physical_path'])) {
+        $file_path = $user_dir . '/' . $file['physical_path'];
+    } else {
+        $new_filepath = $user_dir . '/' . $file_id . '_' . basename($filename);
+        $old_filepath = $user_dir . '/' . basename($filename);
+        $file_path = file_exists($new_filepath) ? $new_filepath : $old_filepath;
+    }
     if (!file_exists($file_path) || !is_readable($file_path)) { http_response_code(404); error_log("Raw file access failed: " . $file_path); exit('Error: File not found or not readable on server.'); }
 
     // MIME-Typ bestimmen
@@ -76,13 +84,21 @@ $file_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$file_id || $file_id <= 0) { set_flash_message('error_invalid_file_id', 'error'); redirect($current_language . '/dashboard'); }
 if (!check_file_permission($conn, $file_id, $current_user_id, $current_user_role)) { set_flash_message('error_no_permission_view_file', 'error'); redirect($current_language . '/dashboard'); }
 
-$file = null; $stmt = $conn->prepare("SELECT filename, uploader_id, size FROM files WHERE id = ?");
+$file = null; $stmt = $conn->prepare("SELECT filename, uploader_id, size, physical_path FROM files WHERE id = ?");
 if (!$stmt) { error_log("DB Prepare Error (view_file SELECT): " . $conn->error); set_flash_message('error_db_prepare', 'error'); redirect($current_language . '/dashboard'); }
 $stmt->bind_param("i", $file_id); $stmt->execute(); $result = $stmt->get_result(); $file = $result->fetch_assoc(); $stmt->close();
 if (!$file) { set_flash_message('error_file_not_found', 'error'); redirect($current_language . '/dashboard'); }
 
 $filename = $file['filename']; $uploader_id = $file['uploader_id']; $filesize = $file['size'];
-$file_path = rtrim(USER_UPLOAD_DIR, '/') . '/' . $uploader_id . '/' . basename($filename);
+$user_dir = rtrim(USER_UPLOAD_DIR, '/') . '/' . $uploader_id;
+
+if (!empty($file['physical_path'])) {
+    $file_path = $user_dir . '/' . $file['physical_path'];
+} else {
+    $new_filepath = $user_dir . '/' . $file_id . '_' . basename($filename);
+    $old_filepath = $user_dir . '/' . basename($filename);
+    $file_path = file_exists($new_filepath) ? $new_filepath : $old_filepath;
+}
 if (!file_exists($file_path) || !is_readable($file_path)) { @error_log("Datei physisch nicht gefunden: " . $file_path); set_flash_message('error_file_physical_not_found', 'error'); redirect($current_language . '/dashboard'); }
 
 // MIME-Typ bestimmen

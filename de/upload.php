@@ -100,30 +100,59 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['files'])) {
         if ($file_size == 0) { $error_files_count++; $upload_errors[] = ['key' => 'error_upload_empty_file', 'args' => [$filename]]; continue; }
         if ($file_size > $max_file_size) { $error_files_count++; $upload_errors[] = ['key' => 'error_file_too_large', 'args' => [$filename, format_bytes($max_file_size)]]; continue; }
 
-        // Zielpfad bestimmen & Überschreiben verhindern
-        $target_filename = $filename; $target_file_path = $user_upload_path . '/' . $target_filename; $counter = 1;
-        clearstatcache(true, $target_file_path); // Wichtig, um PHP File-Cache zu leeren
-        while (file_exists($target_file_path) || in_array($target_filename, $used_filenames_in_batch)) {
-            $filename_no_ext = pathinfo($filename, PATHINFO_FILENAME);
-            $target_filename = $filename_no_ext . '_' . $counter . '.' . $file_extension;
-            $target_file_path = $user_upload_path . '/' . $target_filename;
-            $counter++;
-            clearstatcache(true, $target_file_path);
-            if ($counter > 100) { $error_files_count++; $upload_errors[] = ['key' => 'error_file_exists_rename', 'args' => [$filename]]; continue 2; }
-        }
-        
-        $used_filenames_in_batch[] = $target_filename;
-
-        // Datei verschieben & DB Eintrag
-        if (move_uploaded_file($file_tmp, $target_file_path)) {
-            $public = 0; $stmt = $conn->prepare("INSERT INTO files (filename, size, uploader_id, folder_id, public, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
-            if ($stmt) {
-                $stmt->bind_param("siiis", $target_filename, $file_size, $current_user_id, $current_folder_id, $public);
-                if ($stmt->execute()) { $uploaded_files_count++; }
-                else { $error_files_count++; $upload_errors[] = ['key' => 'error_db_insert_file', 'args' => [$target_filename]]; error_log("DB Insert failed: " . $conn->error); @unlink($target_file_path); }
+        $public = 0;
+        $stmt = $conn->prepare("INSERT INTO files (filename, size, uploader_id, folder_id, public, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+        if ($stmt) {
+            $stmt->bind_param("siiis", $filename, $file_size, $current_user_id, $current_folder_id, $public);
+            if ($stmt->execute()) {
+                $file_id = $conn->insert_id;
                 $stmt->close();
-            } else { $error_files_count++; $upload_errors[] = ['key' => 'error_db_prepare_file', 'args' => [$target_filename]]; error_log("DB Prepare failed: " . $conn->error); @unlink($target_file_path); }
-        } else { $error_files_count++; $upload_errors[] = ['key' => 'error_failed_to_move_file', 'args' => [$filename]]; error_log("Failed to move uploaded file"); }
+                
+                // Physischer Dateiname = zufälliger, verschachtelter Pfad (PHP 5.6 kompatibel)
+                $rand1 = substr(md5(uniqid(mt_rand(), true)), 0, 8);
+                $rand2 = substr(md5(uniqid(mt_rand(), true)), 0, 8);
+                $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+                $rand3 = md5(uniqid(mt_rand(), true));
+                if ($ext) { $rand3 .= '.' . $ext; }
+                
+                $physical_path = $rand1 . '/' . $rand2 . '/' . $rand3;
+                $target_file_path = $user_upload_path . '/' . $physical_path;
+                
+                // Ordner erstellen falls nicht vorhanden
+                $dir_path = dirname($target_file_path);
+                if (!is_dir($dir_path)) {
+                    mkdir($dir_path, 0755, true);
+                }
+                
+                if (move_uploaded_file($file_tmp, $target_file_path)) {
+                    // Physischen Pfad in DB speichern
+                    $upd_stmt = $conn->prepare("UPDATE files SET physical_path = ? WHERE id = ?");
+                    if ($upd_stmt) {
+                        $upd_stmt->bind_param("si", $physical_path, $file_id);
+                        $upd_stmt->execute();
+                        $upd_stmt->close();
+                    }
+                    
+                    $uploaded_files_count++;
+                    $used_filenames_in_batch[] = $filename;
+                } else {
+                    $error_files_count++; 
+                    $upload_errors[] = ['key' => 'error_failed_to_move_file', 'args' => [$filename]]; 
+                    error_log("Failed to move uploaded file");
+                    // Rollback DB-Eintrag, wenn das Verschieben fehlschlägt
+                    $conn->query("DELETE FROM files WHERE id = " . (int)$file_id);
+                }
+            } else {
+                $error_files_count++; 
+                $upload_errors[] = ['key' => 'error_db_insert_file', 'args' => [$filename]]; 
+                error_log("DB Insert failed: " . $conn->error); 
+                $stmt->close();
+            }
+        } else {
+            $error_files_count++; 
+            $upload_errors[] = ['key' => 'error_db_prepare_file', 'args' => [$filename]]; 
+            error_log("DB Prepare failed: " . $conn->error); 
+        }
     } // Ende for-Schleife
 
     // --- Feedback generieren (NUR Schlüssel und Argumente!) ---
