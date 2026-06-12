@@ -1,7 +1,7 @@
 <?php
 // /de/change_password.php
 $current_language = 'de';
-require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../../config/bootstrap.php';
 if (!$is_logged_in) { redirect($current_language . '/login'); }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect($current_language . '/profil'); }
 validate_csrf_token();

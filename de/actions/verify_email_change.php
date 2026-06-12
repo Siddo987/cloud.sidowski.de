@@ -14,7 +14,7 @@ $new_email = isset($token_row['meta']) ? $token_row['meta'] : null;
 if (empty($new_email)) { set_flash_message('error_invalid_data','error'); redirect($current_language . '/login'); }
 
 if (mark_user_token_used($conn, $token_row['id'])) {
-    $stmt = $conn->prepare("UPDATE users SET email = ?, email_verified = 1, session_version = session_version + 1 WHERE id = ?");
+    $stmt = $conn->prepare("UPDATE users SET email = ?, email_verified = 1 WHERE id = ?");
     if ($stmt) {
         $stmt->bind_param('si', $new_email, $token_row['user_id']); $stmt->execute(); $stmt->close();
         set_flash_message('success_email_verified','success');

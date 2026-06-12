@@ -1,7 +1,7 @@
 <?php
 // /de/actions/verify_email.php
 $current_language = 'de';
-require_once __DIR__ . '/../config/bootstrap.php';
+require_once __DIR__ . '/../../config/bootstrap.php';
 
 $token = isset($_GET['token']) ? trim($_GET['token']) : '';
 if (empty($token)) {
