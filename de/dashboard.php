@@ -202,8 +202,18 @@ try {
 
 
 // --- HTML-Ausgabe beginnt HIER ---
-require_once __DIR__ . '/../includes/header.php';
+$is_ajax_table_request = isset($_GET['ajax_tables']);
+
+if (!$is_ajax_table_request) {
+    require_once __DIR__ . '/../includes/header.php';
+} else {
+    if (ob_get_level()) ob_end_clean();
+}
 ?>
+
+<?php if (!$is_ajax_table_request): ?>
+<div id="dashboard-tables-wrapper">
+<?php endif; ?>
 
 <?php // Hier beginnt der eigentliche HTML-Inhalt der Seite ?>
 
@@ -225,7 +235,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php else: ?>
                 <?php foreach ($own_files as $file): ?>
                 <tr class="file-row" data-file-id="<?php echo $file['id']; ?>">
-                    <td><a href="view_file?id=<?php echo $file['id']; ?>" title="<?php echo htmlspecialchars($file['filename']); ?>"><?php echo shorten_filename($file['filename']); ?></a></td>
+                    <td class="filename-cell"><a href="view_file?id=<?php echo $file['id']; ?>" title="<?php echo htmlspecialchars($file['filename']); ?>"><?php echo shorten_filename($file['filename']); ?></a></td>
                     <td><?php echo format_date_lang($file['created_at']); ?></td>
                     <td><?php echo format_bytes($file['size']); ?></td>
                     <td><span class="status-label <?php echo $file['public'] ? 'status-public' : 'status-private'; ?>"><?php echo $file['public'] ? lang('status_public') : lang('status_private'); ?></span></td>
@@ -311,24 +321,15 @@ require_once __DIR__ . '/../includes/header.php';
 <?php // Link "Alle anzeigen" für Öffentliche Dateien ENTFERNT ?>
 
 
+<?php if (!$is_ajax_table_request): ?>
+</div> <!-- End dashboard-tables-wrapper -->
 <?php
 // Footer laden
 require_once __DIR__ . '/../includes/footer.php';
 ?>
 
 <script>
-function renameFile(fileId, currentName) {
-    const newName = prompt('Neuer Dateiname:', currentName);
-    if (newName && newName !== currentName) {
-        postAjaxAction({
-            csrf_token: '<?php echo csrf_token(); ?>',
-            rename_file: '1',
-            file_id: fileId,
-            new_filename: newName,
-            ajax: '1'
-        });
-    }
-}
+
 
 // Kompatibilität: Sicherstelle dass postAjaxAction global verfügbar ist
 if (typeof postAjaxAction === 'undefined') {
@@ -352,3 +353,4 @@ if (typeof postAjaxAction === 'undefined') {
     };
 }
 </script>
+<?php endif; ?>

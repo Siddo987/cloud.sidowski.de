@@ -214,20 +214,7 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<script>
-function renameFile(fileId, currentName) {
-    const newName = prompt('Neuer Dateiname:', currentName);
-    if (newName && newName !== currentName) {
-        postAjaxAction({
-            csrf_token: '<?php echo csrf_token(); ?>',
-            rename_file: '1',
-            file_id: fileId,
-            new_filename: newName,
-            ajax: '1'
-        });
-    }
-}
-</script>
+
 
 <?php
 require_once __DIR__ . '/../includes/footer.php';

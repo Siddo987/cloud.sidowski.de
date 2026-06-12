@@ -53,9 +53,24 @@ $js_file_on_server = dirname(__DIR__) . '/js/main.js'; // Pfad relativ zu dieser
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $htmlTitle; ?></title>
     <link rel="stylesheet" href="<?php echo htmlspecialchars($css_path); ?>?v=<?php echo file_exists($css_file_on_server) ? filemtime($css_file_on_server) : time(); ?>">
-    <?php /* Das data-theme Attribut wird vom JS gesetzt/entfernt, kein PHP hier nötig */ ?>
+    <script>
+        // Verhindert ein "Flackern" der Farben beim Laden der Seite (Flash of Unstyled Content)
+        (function() {
+            try {
+                var pref = localStorage.getItem('themePreference') || 'system';
+                var themeToSet = pref;
+                if (pref === 'system') {
+                    var prefersDarkOS = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    themeToSet = prefersDarkOS ? 'dark' : 'light';
+                }
+                document.documentElement.setAttribute('data-theme', themeToSet);
+            } catch (e) {
+                console.error("Fehler beim Laden des Themes:", e);
+            }
+        })();
+    </script>
 </head>
-<body> <?php /* Keine Klasse hier, wird vom JS gesteuert */ ?>
+<body>
 
     <header>
         <div class="container">

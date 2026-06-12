@@ -895,8 +895,35 @@ form.search-form-inline button {
   border-right: 0.4em solid transparent;
   border-bottom: 0;
   border-left: 0.4em solid transparent;
-  transition: transform 0.2s ease-in-out;
+  transition: transform 0.3s ease-in-out;
   opacity: 0.8;
+}
+
+/* --- Modal Styles --- */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000;
+}
+.modal-overlay.active { display: flex; }
+.modal-dialog {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 8px; width: 90%; max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 20px;
+}
+.modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 10px; margin-bottom: 15px;
+}
+.modal-header h3 { margin: 0; font-size: 1.2rem; }
+.modal-close {
+    background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color); line-height: 1; padding: 0;
+}
+.modal-footer {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
+}
 }
 .dropdown-toggle[aria-expanded="true"]::after {
   transform: rotate(180deg);

@@ -13,6 +13,25 @@ $js_file_path = dirname(__DIR__) . '/js/main.js';
             </small>
         </div>
     </footer>
+    
+    <!-- Rename Modal -->
+    <div id="renameModal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Umbenennen</h3>
+                <button type="button" class="modal-close" aria-label="Schließen" onclick="closeRenameModal()">×</button>
+            </div>
+            <div class="modal-content">
+                <input type="text" id="renameModalInput" class="form-control" placeholder="Neuer Dateiname" style="width: 100%;" />
+                <input type="hidden" id="renameModalFileId" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="button button-secondary modal-close" onclick="closeRenameModal()">Abbrechen</button>
+                <button type="button" class="button button-primary" id="renameModalSubmit" onclick="submitRenameModal()">Speichern</button>
+            </div>
+        </div>
+    </div>
+    
     <script src="<?php echo $js_path; ?>?v=<?php echo file_exists($js_file_path) ? filemtime($js_file_path) : time(); ?>"></script>
     <?php
         // Flash-Message als Toast anzeigen, wenn vorhanden

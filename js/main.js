@@ -9,14 +9,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (preference === 'system') {
             const prefersDarkOS = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             themeToSet = prefersDarkOS ? 'dark' : 'light';
-            htmlElement.removeAttribute('data-theme');
             console.log("Theme: System -> Using OS:", themeToSet);
         } else {
             themeToSet = preference;
-            htmlElement.setAttribute('data-theme', themeToSet);
-            localStorage.setItem('themePreference', preference);
             console.log("Theme: Applying explicit:", themeToSet);
         }
+        
+        htmlElement.setAttribute('data-theme', themeToSet);
+        localStorage.setItem('themePreference', preference);
+
         themeButtons.forEach(btn => {
             btn.classList.toggle('active', btn.dataset.theme === preference);
         });
@@ -283,6 +284,17 @@ ${noFilesText}
                 console.warn('localStorage nicht verfügbar:', e);
             }
             
+            // Dashboard immer komplett neu laden, um die "Top 3" korrekt aufzufüllen
+            if (window.location.pathname.includes('/dashboard')) {
+                const wrapper = document.getElementById('dashboard-tables-wrapper');
+                if (wrapper) {
+                    fetch(window.location.pathname + '?ajax_tables=1')
+                        .then(r => r.text())
+                        .then(html => { wrapper.innerHTML = html; })
+                        .catch(e => console.error("AJAX Tabellen-Reload Fehler:", e));
+                }
+            }
+            
             if (data.action === 'delete_file' && data.data?.file_id) {
                 document.querySelectorAll(`tr.file-row[data-file-id="${data.data.file_id}"]`).forEach(row => row.remove());
             }
@@ -292,11 +304,23 @@ ${noFilesText}
             if (data.action === 'delete_folder' && data.data?.folder_id) {
                 document.querySelectorAll(`tr.folder-row[data-folder-id="${data.data.folder_id}"]`).forEach(row => row.remove());
             }
+            if (data.action === 'restore_folder' && data.data?.folder_id) {
+                document.querySelectorAll(`tr.folder-row[data-folder-id="${data.data.folder_id}"]`).forEach(row => row.remove());
+            }
+            if (data.action === 'delete_folder_permanently' && data.data?.folder_id) {
+                document.querySelectorAll(`tr.folder-row[data-folder-id="${data.data.folder_id}"]`).forEach(row => row.remove());
+            }
             if (data.action === 'delete_user' && data.data?.user_id) {
                 document.querySelectorAll(`tr[data-user-id="${data.data.user_id}"]`).forEach(row => row.remove());
             }
             if (data.action === 'restore_file' && data.data?.file_id) {
                 document.querySelectorAll(`tr[data-file-id="${data.data.file_id}"]`).forEach(row => row.remove());
+            }
+            if (data.action === 'move_file' && data.data?.file_id) {
+                document.querySelectorAll(`tr.file-row[data-file-id="${data.data.file_id}"]`).forEach(row => row.remove());
+            }
+            if (data.action === 'move_folder' && data.data?.folder_id) {
+                document.querySelectorAll(`tr.folder-row[data-folder-id="${data.data.folder_id}"]`).forEach(row => row.remove());
             }
             if (data.action === 'make_private' && data.data?.file_id) {
                 document.querySelectorAll(`tr.file-row[data-file-id="${data.data.file_id}"]`).forEach(row => {
@@ -319,6 +343,52 @@ ${noFilesText}
                             const currentStatusInput = actionBtn.closest('form')?.querySelector('input[name="current_status"]');
                             if (currentStatusInput) currentStatusInput.value = '0';
                         }
+                    }
+                });
+            }
+            if (data.action === 'rename_file' && data.data?.file_id && (data.data?.new_filename || data.data?.new_name)) {
+                const newName = data.data.new_filename || data.data.new_name;
+                document.querySelectorAll(`tr.file-row[data-file-id="${data.data.file_id}"]`).forEach(row => {
+                    const link = row.querySelector('.filename-cell a');
+                    if (link) {
+                        link.title = newName;
+                        const icon = link.querySelector('i');
+                        let displayName = newName;
+                        if (displayName.length > 40) {
+                            displayName = displayName.substring(0, 20) + '...' + displayName.substring(displayName.length - 15);
+                        }
+                        if (icon) {
+                            link.innerHTML = '';
+                            link.appendChild(icon);
+                            link.appendChild(document.createTextNode(' ' + displayName));
+                        } else {
+                            link.textContent = displayName;
+                        }
+                    }
+                    const renameBtn = row.querySelector('button[title="Umbenennen"]');
+                    if (renameBtn) {
+                        renameBtn.setAttribute('onclick', `renameFile(${data.data.file_id}, '${newName.replace(/'/g, "\\'")}')`);
+                    }
+                });
+            }
+            if (data.action === 'rename_folder' && data.data?.folder_id && (data.data?.new_foldername || data.data?.new_name)) {
+                const newFolderName = data.data.new_foldername || data.data.new_name;
+                document.querySelectorAll(`tr.folder-row[data-folder-id="${data.data.folder_id}"]`).forEach(row => {
+                    const link = row.querySelector('.foldername-cell a, .filename-cell a');
+                    if (link) {
+                        link.title = newFolderName;
+                        const icon = link.querySelector('i');
+                        if (icon) {
+                            link.innerHTML = '';
+                            link.appendChild(icon);
+                            link.appendChild(document.createTextNode(' ' + newFolderName));
+                        } else {
+                            link.textContent = newFolderName;
+                        }
+                    }
+                    const renameBtn = row.querySelector('button[title="Umbenennen"]');
+                    if (renameBtn) {
+                        renameBtn.setAttribute('onclick', `renameFolder(${data.data.folder_id}, '${newFolderName.replace(/'/g, "\\'")}')`);
                     }
                 });
             }
@@ -415,24 +485,14 @@ ${noFilesText}
                     }
                 }
             }
-            if (data.action === 'rename_file' && data.data?.file_id && data.data?.new_name) {
-                document.querySelectorAll(`tr.file-row[data-file-id="${data.data.file_id}"]`).forEach(row => {
-                    let nameCell = row.querySelector('.filename-cell a') || row.querySelector('a');
-                    if (nameCell) nameCell.textContent = data.data.new_name;
-                    const renameBtn = row.querySelector('button[onclick^="renameFile"]');
-                    if (renameBtn) renameBtn.setAttribute('onclick', `renameFile(${data.data.file_id}, '${data.data.new_name.replace(/'/g, "\\'")}')`);
-                });
-            }
-            if (data.action === 'rename_folder' && data.data?.folder_id && data.data?.new_name) {
-                document.querySelectorAll(`tr.folder-row[data-folder-id="${data.data.folder_id}"]`).forEach(row => {
-                    let nameCell = row.querySelector('.filename-cell a') || row.querySelector('a');
-                    if (nameCell) nameCell.textContent = data.data.new_name;
-                });
-            }
+            // Der zweite Block für rename_file wurde entfernt, da er den ersten Block überschreibt.
+            // Der zweite Block für rename_folder wurde ebenfalls entfernt.
         } else {
             showAjaxFlash(data.message || 'Ein Fehler ist aufgetreten', 'error');
         }
     }
+    window.handleAjaxResponse = handleAjaxResponse;
+    
     function postAjaxAction(actionData) {
         const endpoint = window.location.pathname;
         return fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams(actionData) })
@@ -468,6 +528,7 @@ ${noFilesText}
             showAjaxFlash(`Netzwerkfehler: ${error.message}`, 'error');
         });
     }
+    window.postAjaxAction = postAjaxAction;
     window.customConfirm = function(message) {
         return new Promise((resolve) => {
             const modal = document.createElement('div');
@@ -591,6 +652,20 @@ ${noFilesText}
                 const action = broadcastData.action;
                 const data = broadcastData.data;
                 
+                // Dashboard bei Aktionen in anderen Tabs neu laden
+                if (window.location.pathname.includes('/dashboard')) {
+                    const wrapper = document.getElementById('dashboard-tables-wrapper');
+                    if (wrapper) {
+                        fetch(window.location.pathname + '?ajax_tables=1')
+                            .then(r => r.text())
+                            .then(html => { wrapper.innerHTML = html; })
+                            .catch(e => console.error("AJAX Tabellen-Reload Fehler:", e));
+                    } else {
+                        setTimeout(() => window.location.reload(), 500);
+                    }
+                    return;
+                }
+                
                 // Aktualisiere die aktuelle Seite basierend auf der Aktion aus einem anderen Tab
                 if (action === 'delete_file' && data?.file_id) {
                     const row = document.querySelector(`tr.file-row[data-file-id="${data.file_id}"]`);
@@ -665,4 +740,74 @@ ${noFilesText}
             }
         }
     });
-}); // Ende DOMContentLoaded
+
+    // Modal close on click outside
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('renameModal');
+        if (event.target === modal) {
+            closeRenameModal();
+        }
+    });
+});
+
+// Modal Rename functions
+window.closeRenameModal = function() {
+    const modal = document.getElementById('renameModal');
+    if (modal) modal.classList.remove('active');
+};
+
+window.submitRenameModal = function() {
+    const input = document.getElementById('renameModalInput');
+    const idInput = document.getElementById('renameModalFileId');
+    if (!input || !idInput || !input.value) return;
+    
+    postAjaxAction({
+        csrf_token: document.querySelector('meta[name="csrf-token"]')?.content || document.querySelector('input[name="csrf_token"]')?.value || '',
+        rename_file: '1',
+        file_id: idInput.value,
+        new_filename: input.value,
+        ajax: '1'
+    });
+    closeRenameModal();
+};
+
+window.renameFile = function(fileId, currentName) {
+    const modal = document.getElementById('renameModal');
+    const input = document.getElementById('renameModalInput');
+    const idInput = document.getElementById('renameModalFileId');
+    if (modal && input && idInput) {
+        input.value = currentName;
+        idInput.value = fileId;
+        modal.classList.add('active');
+        input.focus();
+        
+        // Enter-Taste abfangen
+        input.onkeydown = function(e) {
+            if (e.key === 'Enter') submitRenameModal();
+        };
+    } else {
+        const newName = prompt('Neuer Dateiname:', currentName);
+        if (newName && newName !== currentName) {
+            postAjaxAction({
+                csrf_token: document.querySelector('input[name="csrf_token"]')?.value || '',
+                rename_file: '1',
+                file_id: fileId,
+                new_filename: newName,
+                ajax: '1'
+            });
+        }
+    }
+};
+
+window.renameFolder = function(folderId, currentName) {
+    const newName = prompt('Neuer Ordnername:', currentName);
+    if (newName && newName !== currentName) {
+        postAjaxAction({
+            csrf_token: document.querySelector('meta[name="csrf-token"]')?.content || document.querySelector('input[name="csrf_token"]')?.value || '',
+            rename_folder: '1',
+            folder_id: folderId,
+            new_foldername: newName,
+            ajax: '1'
+        });
+    }
+};

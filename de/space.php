@@ -1,5 +1,5 @@
 <?php
-// /de/own_files.php
+// /de/space.php
 
 $current_language = 'de';
 require_once __DIR__ . '/../config/bootstrap.php'; // Pfad korrigiert
@@ -14,15 +14,15 @@ $current_folder_id = isset($_GET['folder']) ? (int)$_GET['folder'] : null;
 
 // Prüfe Ordner-Berechtigung
 if ($current_folder_id) {
-    $stmt = $conn->prepare("SELECT id, name, parent_id FROM folders WHERE id = ? AND user_id = ? AND deleted = 0");
-    $stmt->bind_param("ii", $current_folder_id, $current_user_id);
+    $stmt = $conn->prepare("SELECT id, name, parent_id FROM folders WHERE id = ? AND space_id = ? AND deleted = 0");
+    $stmt->bind_param("ii", $current_folder_id, $current_space_id);
     $stmt->execute();
     $result = $stmt->get_result();
     $current_folder = $result->fetch_assoc();
     $stmt->close();
     if (!$current_folder) {
         set_flash_message('Ordner nicht gefunden oder keine Berechtigung', 'error');
-        redirect($current_language . '/own_files');
+        redirect($current_language . '/space');
     }
 } else {
     $current_folder = null;
@@ -32,18 +32,18 @@ if ($current_folder_id) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf_token();
     // Debug-Log: Rohes POST zur Analyse (einmalig aktivieren wenn nötig)
-    error_log("own_files POST: " . var_export($_POST, true));
+    error_log("space POST: " . var_export($_POST, true));
     $action_taken = false;
     $ajax_mode = isset($_POST['ajax']) && $_POST['ajax'] === '1';
     $ajax_response = ['success' => false, 'message' => '', 'action' => null, 'data' => null];
-    $redirect_url = $current_language . '/own_files' . ($current_folder_id ? '?folder=' . $current_folder_id : '') . (!empty($search_term) ? '&search=' . urlencode($search_term) : ''); // Redirect-URL vorbereiten
+    $redirect_url = $current_language . '/space' . ($current_folder_id ? '?folder=' . $current_folder_id : '') . (!empty($search_term) ? '&search=' . urlencode($search_term) : ''); // Redirect-URL vorbereiten
 
     // Ordner löschen
     if (isset($_POST['delete_folder'])) {
         $folder_id_to_delete = filter_input(INPUT_POST, 'folder_id', FILTER_VALIDATE_INT);
         if ($folder_id_to_delete) {
-            $stmt = $conn->prepare("UPDATE folders SET deleted = 1 WHERE id = ? AND user_id = ? AND deleted = 0");
-            $stmt->bind_param("ii", $folder_id_to_delete, $current_user_id);
+            $stmt = $conn->prepare("UPDATE folders SET deleted = 1 WHERE id = ? AND space_id = ? AND deleted = 0");
+            $stmt->bind_param("ii", $folder_id_to_delete, $current_space_id);
             if ($stmt->execute() && $stmt->affected_rows > 0) {
                 cascade_soft_delete_folder($conn, $folder_id_to_delete, $current_user_id);
                 set_flash_message('Ordner erfolgreich in den Papierkorb verschoben', 'success');
@@ -69,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_foldername = trim(isset($_POST['new_foldername']) ? $_POST['new_foldername'] : '');
         if ($folder_id_rename && !empty($new_foldername)) {
             if (preg_match('/^[a-zA-Z0-9._\-\s\(\)]+$/', $new_foldername) && strlen($new_foldername) <= 255) {
-                $stmt = $conn->prepare("UPDATE folders SET name = ? WHERE id = ? AND user_id = ?");
-                $stmt->bind_param('sii', $new_foldername, $folder_id_rename, $current_user_id);
+                $stmt = $conn->prepare("UPDATE folders SET name = ? WHERE id = ? AND space_id = ?");
+                $stmt->bind_param('sii', $new_foldername, $folder_id_rename, $current_space_id);
                 if ($stmt->execute()) {
                     set_flash_message('Ordner erfolgreich umbenannt', 'success');
                     if ($ajax_mode) {
@@ -96,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['delete_file'])) {
         $file_id_to_delete = filter_input(INPUT_POST, 'file_id', FILTER_VALIDATE_INT);
         if ($file_id_to_delete) {
-            $stmt = $conn->prepare("UPDATE files SET deleted = 1 WHERE id = ? AND uploader_id = ? AND deleted = 0");
-            $stmt->bind_param("ii", $file_id_to_delete, $current_user_id);
+            $stmt = $conn->prepare("UPDATE files SET deleted = 1 WHERE id = ? AND space_id = ? AND deleted = 0");
+            $stmt->bind_param("ii", $file_id_to_delete, $current_space_id);
             if ($stmt->execute()) {
                 if (!$ajax_mode) {
                     set_flash_message('Datei erfolgreich in den Papierkorb verschoben', 'success');
@@ -127,9 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($file_id_toggle && ($current_status_int === 0 || $current_status_int === 1)) {
             // Explizite Berechtigungsprüfung (ist es wirklich die eigene Datei?)
-            $perm_check_stmt = $conn->prepare("SELECT id FROM files WHERE id = ? AND uploader_id = ?");
+            $perm_check_stmt = $conn->prepare("SELECT id FROM files WHERE id = ? AND space_id = ?");
             if ($perm_check_stmt) {
-                $perm_check_stmt->bind_param("ii", $file_id_toggle, $current_user_id);
+                $perm_check_stmt->bind_param("ii", $file_id_toggle, $current_space_id);
                 $perm_check_stmt->execute();
                 $perm_check_stmt->store_result();
                 $has_permission = $perm_check_stmt->num_rows > 0;
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if (!$ajax_mode) {
                                 set_flash_message(lang('error_db_update'), 'error');
                             }
-                            error_log("DB Update Error (own_files toggle): " . $update_query->error);
+                            error_log("DB Update Error (space toggle): " . $update_query->error);
                             if ($ajax_mode) {
                                 $ajax_response = ['success' => false, 'message' => 'Fehler beim Ändern des Status'];
                             }
@@ -177,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $update_query->close();
                     } else {
                         set_flash_message(lang('error_db_prepare'), 'error');
-                        error_log("DB Prepare Error (own_files toggle): " . $conn->error);
+                        error_log("DB Prepare Error (space toggle): " . $conn->error);
                         if ($ajax_mode) {
                             $ajax_response = ['success' => false, 'message' => 'Datenbankfehler'];
                         }
@@ -209,9 +209,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_filename = trim(isset($_POST['new_filename']) ? $_POST['new_filename'] : '');
         if ($file_id_rename && !empty($new_filename)) {
             // Berechtigung prüfen (eigene Datei)
-            $perm_check_stmt = $conn->prepare("SELECT id FROM files WHERE id = ? AND uploader_id = ? AND deleted = 0");
+            $perm_check_stmt = $conn->prepare("SELECT id FROM files WHERE id = ? AND space_id = ? AND deleted = 0");
             if ($perm_check_stmt) {
-                $perm_check_stmt->bind_param("ii", $file_id_rename, $current_user_id);
+                $perm_check_stmt->bind_param("ii", $file_id_rename, $current_space_id);
                 $perm_check_stmt->execute(); $perm_check_stmt->store_result();
                 $has_permission = $perm_check_stmt->num_rows > 0;
                 $perm_check_stmt->close();
@@ -255,17 +255,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("move_folder: folder_id={$folder_id_move}, target_folder_id=" . var_export($target_folder_id, true));
         if ($folder_id_move) {
             // Berechtigung prüfen (eigener Ordner)
-            $perm_check_stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ? AND deleted = 0");
+            $perm_check_stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND space_id = ? AND deleted = 0");
             if ($perm_check_stmt) {
-                $perm_check_stmt->bind_param("ii", $folder_id_move, $current_user_id);
+                $perm_check_stmt->bind_param("ii", $folder_id_move, $current_space_id);
                 $perm_check_stmt->execute(); $perm_check_stmt->store_result();
                 $has_permission = $perm_check_stmt->num_rows > 0;
                 $perm_check_stmt->close();
                 if ($has_permission) {
                     // Zielordner-Berechtigung prüfen (falls angegeben)
                     if ($target_folder_id) {
-                        $folder_check_stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ? AND deleted = 0");
-                        $folder_check_stmt->bind_param("ii", $target_folder_id, $current_user_id);
+                        $folder_check_stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND space_id = ? AND deleted = 0");
+                        $folder_check_stmt->bind_param("ii", $target_folder_id, $current_space_id);
                         $folder_check_stmt->execute(); $folder_check_stmt->store_result();
                         $folder_exists = $folder_check_stmt->num_rows > 0;
                         $folder_check_stmt->close();
@@ -283,8 +283,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $is_descendant = true;
                                 break;
                             }
-                            $parent_stmt = $conn->prepare("SELECT parent_id FROM folders WHERE id = ? AND user_id = ?");
-                            $parent_stmt->bind_param("ii", $check_id, $current_user_id);
+                            $parent_stmt = $conn->prepare("SELECT parent_id FROM folders WHERE id = ? AND space_id = ?");
+                            $parent_stmt->bind_param("ii", $check_id, $current_space_id);
                             $parent_stmt->execute();
                             $parent_result = $parent_stmt->get_result();
                             $parent_row = $parent_result->fetch_assoc();
@@ -337,17 +337,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         error_log("move_file: file_id={$file_id_move}, target_folder_id=" . var_export($target_folder_id, true));
         if ($file_id_move) {
             // Berechtigung prüfen (eigene Datei)
-            $perm_check_stmt = $conn->prepare("SELECT id FROM files WHERE id = ? AND uploader_id = ? AND deleted = 0");
+            $perm_check_stmt = $conn->prepare("SELECT id FROM files WHERE id = ? AND space_id = ? AND deleted = 0");
             if ($perm_check_stmt) {
-                $perm_check_stmt->bind_param("ii", $file_id_move, $current_user_id);
+                $perm_check_stmt->bind_param("ii", $file_id_move, $current_space_id);
                 $perm_check_stmt->execute(); $perm_check_stmt->store_result();
                 $has_permission = $perm_check_stmt->num_rows > 0;
                 $perm_check_stmt->close();
                 if ($has_permission) {
                     // Zielordner-Berechtigung prüfen (falls angegeben)
                     if ($target_folder_id) {
-                        $folder_check_stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ? AND deleted = 0");
-                        $folder_check_stmt->bind_param("ii", $target_folder_id, $current_user_id);
+                        $folder_check_stmt = $conn->prepare("SELECT id FROM folders WHERE id = ? AND space_id = ? AND deleted = 0");
+                        $folder_check_stmt->bind_param("ii", $target_folder_id, $current_space_id);
                         $folder_check_stmt->execute(); $folder_check_stmt->store_result();
                         $folder_exists = $folder_check_stmt->num_rows > 0;
                         $folder_check_stmt->close();
@@ -417,7 +417,7 @@ function build_breadcrumb($conn, $folder_id, $user_id) {
     $path = [];
     $current_id = $folder_id;
     while ($current_id) {
-        $stmt = $conn->prepare("SELECT id, name, parent_id FROM folders WHERE id = ? AND user_id = ? AND deleted = 0");
+        $stmt = $conn->prepare("SELECT id, name, parent_id FROM folders WHERE id = ? AND space_id = ? AND deleted = 0");
         $stmt->bind_param("ii", $current_id, $user_id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -435,7 +435,7 @@ function build_breadcrumb($conn, $folder_id, $user_id) {
 
 $breadcrumb = build_breadcrumb($conn, $current_folder_id, $current_user_id);
 // Ordner holen
-$folders_sql = "SELECT id, name, created_at FROM folders WHERE user_id = ? AND deleted = 0";
+$folders_sql = "SELECT id, name, created_at FROM folders WHERE space_id = ? AND deleted = 0";
 $folders_params = [$current_user_id]; $folders_types = "i";
 if ($current_folder_id !== null) {
     $folders_sql .= " AND parent_id " . ($current_folder_id ? "= ?" : "IS NULL");
@@ -459,7 +459,7 @@ if ($folders_stmt) {
 }
 
 // Dateien holen
-$files_sql = "SELECT id, filename, created_at, public, size FROM files WHERE uploader_id = ? AND deleted = 0";
+$files_sql = "SELECT id, filename, created_at, public, size FROM files WHERE space_id = ? AND deleted = 0";
 $files_params = [$current_user_id]; $files_types = "i";
 if ($current_folder_id !== null) {
     $files_sql .= " AND folder_id " . ($current_folder_id ? "= ?" : "IS NULL");
@@ -503,14 +503,14 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
 
 <!-- Breadcrumb -->
 <div class="breadcrumb">
-    <a href="own_files" class="breadcrumb-link" data-target-folder="">Start</a>
+    <a href="space?id=<?php echo $current_space_id; ?>" class="breadcrumb-link" data-target-folder="">Start</a>
     <?php foreach ($breadcrumb as $crumb): ?>
-        / <a href="own_files?folder=<?php echo $crumb['id']; ?>" class="breadcrumb-link" data-target-folder="<?php echo $crumb['id']; ?>"><?php echo htmlspecialchars($crumb['name']); ?></a>
+        / <a href="space?id=<?php echo $current_space_id; ?>&folder=<?php echo $crumb['id']; ?>" class="breadcrumb-link" data-target-folder="<?php echo $crumb['id']; ?>"><?php echo htmlspecialchars($crumb['name']); ?></a>
     <?php endforeach; ?>
 </div>
 
 <div class="card">
-    <form method="GET" action="own_files" class="search-form-inline" style="margin-bottom: 20px;">
+    <form method="GET" action="space?id=<?php echo $current_space_id; ?>" class="search-form-inline" style="margin-bottom: 20px;">
          <input type="hidden" name="folder" value="<?php echo $current_folder_id ?: ''; ?>">
          <input type="search" name="search" placeholder="<?php echo lang('placeholder_search_files'); ?>" value="<?php echo htmlspecialchars($search_term); ?>" style="/*...*/">
          <button type="submit" class="button button-secondary" style="/*...*/"><?php echo lang('button_search'); ?></button>
@@ -534,7 +534,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                     <?php foreach ($folders as $folder): ?>
                         <tr class="folder-row" data-folder-id="<?php echo $folder['id']; ?>">
                             <td>
-                                <a href="own_files?folder=<?php echo $folder['id']; ?>" title="<?php echo htmlspecialchars($folder['name']); ?>">
+                                <a href="space?id=<?php echo $current_space_id; ?>&folder=<?php echo $folder['id']; ?>" title="<?php echo htmlspecialchars($folder['name']); ?>">
                                     <i class="icon-folder"></i> <?php echo htmlspecialchars($folder['name']); ?>
                                 </a>
                             </td>
@@ -545,9 +545,10 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                                 <button onclick="renameFolder(<?php echo $folder['id']; ?>, '<?php echo addslashes($folder['name']); ?>')" class="action-button" title="Umbenennen">
                                     <i class="icon-edit"></i>
                                 </button>
-                                <form method="post" action="own_files?folder=<?php echo $current_folder_id ?: ''; ?>" class="ajax-action" style="display:inline;" data-custom-confirm="Ordner '<?php echo addslashes($folder['name']); ?>' wirklich löschen?">
+                                <form method="post" action="space?id=<?php echo $current_space_id; ?>&folder=<?php echo $current_folder_id ?: ''; ?>" class="ajax-action" style="display:inline;" data-custom-confirm="Ordner '<?php echo addslashes($folder['name']); ?>' wirklich löschen?">
                                     <input type="hidden" name="ajax" value="1">
-                                    <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                                    <input type="hidden" name="id" value="<?php echo $current_space_id; ?>">
+<input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                                     <input type="hidden" name="delete_folder" value="1">
                                     <input type="hidden" name="folder_id" value="<?php echo $folder['id']; ?>">
                                     <button type="submit" class="action-button delete-button" title="Löschen">
@@ -571,9 +572,10 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                                 <a href="view_file?id=<?php echo $file['id']; ?>" class="action-button view-button" title="<?php echo lang('button_view'); ?>">
                                     <i class="icon-view"></i>
                                 </a>
-                                <form method="post" action="own_files?folder=<?php echo $current_folder_id ?: ''; ?>&search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;">
+                                <form method="post" action="space?id=<?php echo $current_space_id; ?>&folder=<?php echo $current_folder_id ?: ''; ?>&search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;">
                                     <input type="hidden" name="ajax" value="1">
-                                    <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                                    <input type="hidden" name="id" value="<?php echo $current_space_id; ?>">
+<input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                                     <input type="hidden" name="file_id" value="<?php echo $file['id']; ?>">
                                     <input type="hidden" name="current_status" value="<?php echo $file['public']; ?>">
                                     <input type="hidden" name="toggle_public_status" value="1">
@@ -587,9 +589,10 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                                 <button onclick="renameFile(<?php echo $file['id']; ?>, '<?php echo addslashes($file['filename']); ?>')" class="action-button" title="Umbenennen">
                                     <i class="icon-edit"></i>
                                 </button>
-                                <form method="post" action="own_files?folder=<?php echo $current_folder_id ?: ''; ?>&search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;" data-custom-confirm="<?php printf(lang('text_confirm_delete_file'), htmlspecialchars(addslashes($file['filename']))); ?>">
+                                <form method="post" action="space?id=<?php echo $current_space_id; ?>&folder=<?php echo $current_folder_id ?: ''; ?>&search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline;" data-custom-confirm="<?php printf(lang('text_confirm_delete_file'), htmlspecialchars(addslashes($file['filename']))); ?>">
                                     <input type="hidden" name="ajax" value="1">
-                                    <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                                    <input type="hidden" name="id" value="<?php echo $current_space_id; ?>">
+<input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                                     <input type="hidden" name="file_id" value="<?php echo $file['id']; ?>">
                                     <input type="hidden" name="delete_file" value="1">
                                     <button type="submit" name="delete_file" class="action-button delete-button" title="<?php echo lang('button_delete'); ?>">

@@ -101,12 +101,12 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="text" id="folder_name" name="folder_name" required maxlength="255" pattern="[a-zA-Z0-9._\-\s\(\)]+" placeholder="z.B. Dokumente" autocomplete="off">
                 <small class="form-help">Erlaubte Zeichen: Buchstaben, Zahlen, Leerzeichen, Punkte, Bindestriche, Unterstriche, Klammern</small>
             </div>
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-large">
-                    <i class="icon-plus"></i> Ordner erstellen
+            <div class="form-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                <button type="submit" class="button button-primary">
+                    Ordner erstellen
                 </button>
-                <a href="<?php echo htmlspecialchars($base_path . $lang_prefix . 'own_files' . ($current_folder_id ? '?folder=' . $current_folder_id : '')); ?>" class="btn btn-secondary btn-large">
-                    <i class="icon-cancel"></i> Abbrechen
+                <a href="<?php echo htmlspecialchars($base_path . $lang_prefix . 'own_files' . ($current_folder_id ? '?folder=' . $current_folder_id : '')); ?>" class="button button-secondary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center;">
+                    Abbrechen
                 </a>
             </div>
         </form>

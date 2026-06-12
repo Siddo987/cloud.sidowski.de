@@ -116,6 +116,7 @@ if (!$conn->set_charset("utf8")) {
     error_log("Error loading character set utf8: " . $conn->error);
 }
 
+
 // CSRF Token für die Session generieren/sicherstellen
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = generate_csrf_token();
