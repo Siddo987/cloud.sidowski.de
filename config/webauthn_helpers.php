@@ -171,8 +171,17 @@ function generate_webauthn_auth_challenge($user_id) {
 function validate_webauthn_assertion($user_id, $assertion) {
     global $conn;
     
+    // Decode ClientDataJSON to get the actual challenge
+    $clientDataJSON_b64 = $assertion['response']['clientDataJSON'];
+    $clientDataJSON = base64_decode(strtr($clientDataJSON_b64, '-_', '+/'));
+    $clientData = json_decode($clientDataJSON, true);
+    
+    if (!isset($clientData['challenge'])) {
+        return false;
+    }
+    
     // Hole Challenge
-    $challenge_data = validate_and_use_challenge($conn, $assertion['response']['clientDataJSON'], 'authentication');
+    $challenge_data = validate_and_use_challenge($conn, $clientData['challenge'], 'authentication');
     if (!$challenge_data || $challenge_data['user_id'] != $user_id) {
         return false;
     }
@@ -183,14 +192,54 @@ function validate_webauthn_assertion($user_id, $assertion) {
         return false;
     }
     
-    // Hier würde die eigentliche WebAuthn-Verifizierung mit der Library erfolgen
-    // Für jetzt eine vereinfachte Version (nicht sicher!)
-    // TODO: Implementiere vollständige WebAuthn-Verifizierung mit webauthn-lib
+    // AuthenticatorData
+    $authenticatorData_b64 = $assertion['response']['authenticatorData'];
+    $authenticatorData = base64_decode(strtr($authenticatorData_b64, '-_', '+/'));
     
-    // Simulierte Verifizierung - nur für Testzwecke
-    if (isset($assertion['response']['signature'])) {
-        // Update counter (simuliert)
-        update_credential_counter($conn, $credential['id'], 1);
+    // Data to verify: authenticatorData + SHA256(clientDataJSON)
+    $clientDataHash = hash('sha256', $clientDataJSON, true);
+    $dataToVerify = $authenticatorData . $clientDataHash;
+    
+    // Signature
+    $signature_b64 = $assertion['response']['signature'];
+    $signature = base64_decode(strtr($signature_b64, '-_', '+/'));
+    
+    // Verify using Cose algorithm
+    $decoder = new \CBOR\Decoder(new \CBOR\Tag\TagManager(), new \CBOR\OtherObject\OtherObjectManager());
+    $coseKeyData = $decoder->decode(new \CBOR\StringStream($credential['public_key']))->getNormalizedData();
+    $coseKey = \Cose\Key\Key::createFromData($coseKeyData);
+    
+    $algId = $coseKey->alg();
+    $algorithmManager = new \Webauthn\AlgorithmManager([
+        new \Cose\Algorithm\Signature\ECDSA\ES256(),
+        new \Cose\Algorithm\Signature\ECDSA\ES384(),
+        new \Cose\Algorithm\Signature\ECDSA\ES512(),
+        new \Cose\Algorithm\Signature\RSA\RS256(),
+        new \Cose\Algorithm\Signature\RSA\RS384(),
+        new \Cose\Algorithm\Signature\RSA\RS512(),
+        new \Cose\Algorithm\Signature\EdDSA\EdDSA(),
+    ]);
+    
+    if (!$algorithmManager->has($algId)) {
+        throw new Exception("Unsupported algorithm");
+    }
+    
+    $algorithm = $algorithmManager->get($algId);
+    $isValid = $algorithm->verify($dataToVerify, $coseKey, $signature);
+    
+    if ($isValid) {
+        // Update counter
+        // AuthenticatorData structure: rpIdHash (32), flags (1), signCount (4)
+        $signCountBytes = substr($authenticatorData, 33, 4);
+        $signCountData = unpack('N', $signCountBytes);
+        $newCounter = $signCountData[1];
+        
+        // Simple counter check: new counter > old counter, unless both are 0
+        if ($newCounter > 0 && $newCounter <= $credential['counter']) {
+            return false; // Cloned authenticator or replay
+        }
+        
+        update_credential_counter($conn, $credential['id'], max($newCounter, $credential['counter'] + 1));
         return true;
     }
     

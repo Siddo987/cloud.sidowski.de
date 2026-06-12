@@ -58,14 +58,41 @@ try {
         exit;
     }
     
-    // Speichere das Credential
     $credential_id_b64 = $attestation['id'];
-    $credential_id_raw = base64_decode($credential_id_b64 . str_repeat('=', (4 - strlen($credential_id_b64) % 4) % 4));
-    
-    // Extrahiere öffentlichen Schlüssel aus attestationObject (vereinfacht)
+    $credential_id_raw = base64_decode(strtr($credential_id_b64, '-_', '+/'));
     $attestationObject_b64 = $attestation['response']['attestationObject'];
-    $public_key_raw = base64_encode('webauthn_key_' . bin2hex($credential_id_raw)); // Placeholder
-    $public_key_algo = -7; // ES256
+    $attestationObjectBinary = base64_decode(strtr($attestationObject_b64, '-_', '+/'));
+
+    // Extract public key and credential ID properly using webauthn-lib
+    $attestationStatementSupportManager = new \Webauthn\AttestationStatement\AttestationStatementSupportManager();
+    $attestationStatementSupportManager->add(new \Webauthn\AttestationStatement\NoneAttestationStatementSupport());
+    $attestationStatementSupportManager->add(new \Webauthn\AttestationStatement\PackedAttestationStatementSupport());
+    $attestationStatementSupportManager->add(new \Webauthn\AttestationStatement\FidoU2FAttestationStatementSupport());
+    $attestationStatementSupportManager->add(new \Webauthn\AttestationStatement\AndroidKeyAttestationStatementSupport());
+    $attestationStatementSupportManager->add(new \Webauthn\AttestationStatement\AppleAttestationStatementSupport());
+
+    $attestationObjectLoader = new \Webauthn\AttestationStatement\AttestationObjectLoader($attestationStatementSupportManager);
+    $attestationObject = $attestationObjectLoader->load($attestationObjectBinary);
+    
+    $authData = $attestationObject->getAuthData();
+    $credentialData = $authData->getAttestedCredentialData();
+    
+    if (!$credentialData) {
+        throw new Exception("No credential data found in attestation");
+    }
+
+    $extracted_credential_id = $credentialData->getCredentialId();
+    if ($extracted_credential_id !== $credential_id_raw) {
+        throw new Exception("Credential ID mismatch");
+    }
+
+    $public_key_raw = $credentialData->getCredentialPublicKey(); // Binary CBOR
+    
+    $decoder = new \CBOR\Decoder(new \CBOR\Tag\TagManager(), new \CBOR\OtherObject\OtherObjectManager());
+    $coseKeyData = $decoder->decode(new \CBOR\StringStream($public_key_raw))->getNormalizedData();
+    $coseKey = \Cose\Key\Key::createFromData($coseKeyData);
+    $public_key_algo = $coseKey->alg();
+    $aaguid = $credentialData->getAaguid()->toString();
     
     $success = save_webauthn_credential(
         $conn,
