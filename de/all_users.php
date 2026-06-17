@@ -379,7 +379,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                  <tr data-user-id="<?php echo $user['id']; ?>">
                      <td><?php echo $user['id']; ?></td>
                      <td><?php echo htmlspecialchars($user['username']); ?></td>
-                     <td><?php echo htmlspecialchars($user['email']); ?></td>
+                     <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
                      <td><?php echo lang('role_' . $user_role_lower) ?: htmlspecialchars(ucfirst($user['role'])); ?></td>
                      <td class="actions-cell">
                          <?php if ($can_edit_user): ?>

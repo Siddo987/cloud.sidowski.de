@@ -271,7 +271,7 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="text" name="username" id="username" value="<?php echo htmlspecialchars($user['username']); ?>" required>
 
         <label for="email"><?php echo lang('label_email'); ?></label>
-        <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($user['email']); ?>">
+        <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>">
 
         <label for="role"><?php echo lang('label_role'); ?></label>
         <select name="role" id="role">
