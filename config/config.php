@@ -62,4 +62,6 @@ $ALLOWED_FILE_TYPES = [
 // Max. Upload-GrÃ¶ÃŸe pro Datei in Bytes (100MB). Muss <= PHP-Limits sein!
 define('MAX_FILE_SIZE', 100 * 1024 * 1024);
 
-?>
+// --- Kontakt Einstellungen ---
+define('CONTACT_PHONE', getenv('CONTACT_PHONE') ?: '');
+define('CONTACT_EMAIL', getenv('CONTACT_EMAIL') ?: '');
