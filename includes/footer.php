@@ -8,7 +8,7 @@ $js_file_path = dirname(__DIR__) . '/js/main.js';
     <footer>
         <div class="container">
             <small>&copy; <?php echo date("Y"); ?> <?php echo htmlspecialchars(APP_NAME); ?> |
-                <a href="#"><?php echo lang('link_imprint'); ?></a> | <a href="#"><?php echo lang('link_privacy'); ?></a>
+                <a href="<?php echo $base_path; ?>/de/imprint"><?php echo lang('link_imprint'); ?></a> | <a href="<?php echo $base_path; ?>/de/privacy"><?php echo lang('link_privacy'); ?></a>
                 <?php if (DEBUG_MODE && isset($conn) && $conn instanceof mysqli && @$conn->ping()): ?> | <span style="color: #28a745;">DB Ok</span><?php elseif (DEBUG_MODE): ?> | <span style="color: #dc3545;">DB Err</span><?php endif; ?>
             </small>
         </div>
@@ -28,6 +28,17 @@ $js_file_path = dirname(__DIR__) . '/js/main.js';
             <div class="modal-footer">
                 <button type="button" class="button button-secondary modal-close" onclick="closeRenameModal()">Abbrechen</button>
                 <button type="button" class="button button-primary" id="renameModalSubmit" onclick="submitRenameModal()">Speichern</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cookie Banner -->
+    <div id="cookie-banner" class="cookie-banner" aria-hidden="true" style="display: none;">
+        <div class="cookie-content">
+            <h4>Hinweis zu Cookies</h4>
+            <p>Wir verwenden auf dieser Website ausschließlich technisch notwendige Cookies (z. B. für den Login und die Sicherheit). Es werden keine Tracking- oder Werbe-Cookies eingesetzt.</p>
+            <div class="cookie-actions">
+                <button type="button" class="button button-primary" id="cookie-accept">Verstanden</button>
             </div>
         </div>
     </div>

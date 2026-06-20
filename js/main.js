@@ -810,4 +810,27 @@ window.renameFolder = function(folderId, currentName) {
             ajax: '1'
         });
     }
-};
+};// --- Cookie Banner Logic ---
+document.addEventListener('DOMContentLoaded', function() {
+    const cookieBanner = document.getElementById('cookie-banner');
+    const cookieAcceptBtn = document.getElementById('cookie-accept');
+    
+    if (cookieBanner && cookieAcceptBtn) {
+        if (!localStorage.getItem('cookieConsent')) {
+            cookieBanner.style.display = 'block';
+            setTimeout(() => {
+                cookieBanner.classList.add('show');
+                cookieBanner.removeAttribute('aria-hidden');
+            }, 100);
+        }
+        
+        cookieAcceptBtn.addEventListener('click', function() {
+            localStorage.setItem('cookieConsent', 'true');
+            cookieBanner.classList.remove('show');
+            cookieBanner.setAttribute('aria-hidden', 'true');
+            setTimeout(() => {
+                cookieBanner.style.display = 'none';
+            }, 600); // Wait for transition
+        });
+    }
+});
