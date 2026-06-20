@@ -11,7 +11,7 @@ $new_password = isset($_POST['new_password']) ? $_POST['new_password'] : '';
 $confirm_new_password = isset($_POST['confirm_new_password']) ? $_POST['confirm_new_password'] : '';
 $temp_code = isset($_POST['temp_code']) ? $_POST['temp_code'] : ''; 
 
-if (empty($new_password) || strlen($new_password) < 8) { set_flash_message('error_password_too_short','error'); redirect($current_language . '/profil'); }
+if (empty($new_password) || !validate_password_strength($new_password)) { set_flash_message('error_password_weak','error'); redirect($current_language . '/profil'); }
 if ($new_password !== $confirm_new_password) { set_flash_message('error_passwords_dont_match','error'); redirect($current_language . '/profil'); }
 
 // Authentifikation: Entweder aktuelles Passwort oder Temp-Code

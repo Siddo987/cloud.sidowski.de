@@ -218,6 +218,15 @@ function create_user_token($conn, $user_id, $token, $type, $expires_at, $meta = 
     $res = $stmt->execute(); $stmt->close(); return $res;
 }
 
+function validate_password_strength($password) {
+    if (strlen($password) < 8) return false;
+    if (!preg_match('/[A-Z]/', $password)) return false;
+    if (!preg_match('/[a-z]/', $password)) return false;
+    if (!preg_match('/[0-9]/', $password)) return false;
+    if (!preg_match('/[\W_]/', $password)) return false;
+    return true;
+}
+
 /**
  * Validiert einen Token (noch nicht verwendet, nicht abgelaufen) und gibt die zugehörige Zeile zurück.
  */
@@ -552,4 +561,63 @@ function cleanup_empty_trashed_folders($conn, $folder_id, $user_id) {
     }
 }
 
-?>
+/**
+ * PrOft, ob das Rate Limit fOr eine IP und Aktion erreicht wurde.
+ */
+function check_rate_limit($conn, $ip, $action) {
+    $conn->query("DELETE FROM rate_limits WHERE locked_until IS NOT NULL AND locked_until < NOW()");
+    
+    $stmt = $conn->prepare("SELECT attempts, locked_until FROM rate_limits WHERE ip_address = ? AND action = ?");
+    if (!$stmt) return true; // Fail open if table doesn't exist yet
+    $stmt->bind_param('ss', $ip, $action);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $stmt->close();
+    
+    if ($row && $row['locked_until'] !== null) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Verzeichnet einen fehlgeschlagenen Versuch und sperrt ggf.
+ */
+function record_failed_attempt($conn, $ip, $action, $max_attempts = 5, $lockout_minutes = 15) {
+    $stmt = $conn->prepare("SELECT attempts FROM rate_limits WHERE ip_address = ? AND action = ?");
+    if (!$stmt) return;
+    $stmt->bind_param('ss', $ip, $action);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $stmt->close();
+    
+    if ($row) {
+        $attempts = $row['attempts'] + 1;
+        $locked_until = null;
+        if ($attempts >= $max_attempts) {
+            $locked_until = date('Y-m-d H:i:s', strtotime("+" . $lockout_minutes . " minutes"));
+        }
+        $update = $conn->prepare("UPDATE rate_limits SET attempts = ?, locked_until = ? WHERE ip_address = ? AND action = ?");
+        $update->bind_param('isss', $attempts, $locked_until, $ip, $action);
+        $update->execute();
+        $update->close();
+    } else {
+        $insert = $conn->prepare("INSERT INTO rate_limits (ip_address, action, attempts) VALUES (?, ?, 1)");
+        $insert->bind_param('ss', $ip, $action);
+        $insert->execute();
+        $insert->close();
+    }
+}
+
+/**
+ * L&ouml;scht Rate Limits bei Erfolg (z.B. erfolgreicher Login)
+ */
+function clear_rate_limit($conn, $ip, $action) {
+    $stmt = $conn->prepare("DELETE FROM rate_limits WHERE ip_address = ? AND action = ?");
+    if (!$stmt) return;
+    $stmt->bind_param('ss', $ip, $action);
+    $stmt->execute();
+    $stmt->close();
+}

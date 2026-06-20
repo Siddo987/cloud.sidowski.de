@@ -9,7 +9,7 @@ const LANG_STRINGS_DE = [
     'title_login' => 'Anmeldung', 'title_register' => 'Registrierung', 'title_dashboard' => 'Dashboard', 'title_upload' => 'Datei hochladen',
     'title_my_files' => 'Meine Dateien', 'title_public_files' => 'Öffentliche Dateien', 'title_all_files' => 'Alle Dateien (Admin)',
     'title_all_users' => 'Benutzerverwaltung', 'title_edit_user' => 'Benutzer bearbeiten', 'title_file_view' => 'Dateiansicht', 'title_profile' => 'Mein Profil', // ERGÄNZT
-    'title_error' => 'Fehler',
+    'title_error' => 'Fehler', 'title_imprint' => 'Impressum', 'title_privacy' => 'Datenschutzerklärung',
     'nav_files' => 'Dateien', // NEU
     'nav_settings' => 'Einstellungen', // NEU (im Code nicht verwendet, könnte für Profil-Dropdown genutzt werden)
     'nav_profile' => 'Profil', // NEU
@@ -77,7 +77,7 @@ const LANG_STRINGS_DE = [
     // Login/Register Fehlermeldungen
     'error_login_failed' => 'Anmeldung fehlgeschlagen: Benutzername oder Passwort falsch.', 'error_missing_credentials' => 'Bitte Benutzername und Passwort eingeben.',
     'error_passwords_dont_match' => 'Die Passwörter stimmen nicht überein.', 'error_password_too_short' => 'Das Passwort muss mindestens 8 Zeichen lang sein.',
-    'error_username_taken' => 'Der Benutzername ist bereits vergeben.', 'error_registration_failed' => 'Registrierung fehlgeschlagen.',
+    'error_password_weak' => 'Das Passwort muss mindestens 8 Zeichen lang sein und Groß-, Kleinbuchstaben, Zahlen sowie Sonderzeichen enthalten.', 'error_username_taken' => 'Der Benutzername ist bereits vergeben.', 'error_registration_failed' => 'Registrierung fehlgeschlagen.',
     'error_no_email' => 'Keine E-Mail-Adresse zugewiesen.',
 
     // Upload Fehlermeldungen

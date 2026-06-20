@@ -17,8 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($username) || empty($password) || empty($confirm_password)) {
         $error_message = lang('error_all_fields_required');
-    } elseif (strlen($password) < 8) {
-        $error_message = lang('error_password_too_short');
+    } elseif (!validate_password_strength($password)) {
+        $error_message = lang('error_password_weak');
     } elseif ($password !== $confirm_password) {
         $error_message = lang('error_passwords_dont_match');
     } else {
@@ -120,12 +120,12 @@ require_once __DIR__ . '/../includes/header.php';
 
         <div class="password-wrapper">
             <label for="password"><?php echo lang('label_password'); ?></label>
-            <input type="password" id="password" name="password" required minlength="8">
+            <input type="password" id="password" name="password" required minlength="8" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" title="Mindestens 8 Zeichen, Groß-, Kleinbuchstaben, Zahl und Sonderzeichen">
              <span class="toggle-password-icon icon-eye-open" aria-label="Passwort anzeigen"></span>
         </div>
         <div class="password-wrapper">
             <label for="confirm_password"><?php echo lang('label_confirm_password'); ?></label>
-            <input type="password" id="confirm_password" name="confirm_password" required minlength="8">
+            <input type="password" id="confirm_password" name="confirm_password" required minlength="8" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" title="Mindestens 8 Zeichen, Groß-, Kleinbuchstaben, Zahl und Sonderzeichen">
              <span class="toggle-password-icon icon-eye-open" aria-label="Passwort anzeigen"></span>
         </div>
         <button type="submit" class="button"><?php echo lang('button_register'); ?></button>

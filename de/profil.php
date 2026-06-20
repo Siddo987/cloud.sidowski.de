@@ -630,9 +630,9 @@ require_once __DIR__ . '/../includes/header.php';
             <label>Aktuelles Passwort</label>
             <input type="password" name="current_password" required>
             <label>Neues Passwort</label>
-            <input type="password" name="new_password" required minlength="8">
+            <input type="password" name="new_password" required minlength="8" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" title="Mindestens 8 Zeichen, Groß-, Kleinbuchstaben, Zahl und Sonderzeichen">
             <label>Neues Passwort bestätigen</label>
-            <input type="password" name="confirm_new_password" required minlength="8">
+            <input type="password" name="confirm_new_password" required minlength="8" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" title="Mindestens 8 Zeichen, Groß-, Kleinbuchstaben, Zahl und Sonderzeichen">
             <button type="submit" class="button">Ändern</button>
         </form>
     </div>
@@ -789,6 +789,9 @@ require_once __DIR__ . '/../includes/header.php';
         <h2>WebAuthn verwalten</h2>
         <div id="webauthn-list">
             <!-- Credentials werden hier geladen -->
+        </div>
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="webauthn-name" class="input" placeholder="Name (z.B. Mein YubiKey, Handy)" style="width: 100%; padding: 8px;">
         </div>
         <button id="add-webauthn" class="button">Neuen Sicherheitsschlüssel hinzufügen</button>
     </div>
@@ -1074,10 +1077,10 @@ function setup2FAListeners() {
 // copy string to clipboard utility
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        alert('Link in Zwischenablage kopiert');
+        showAjaxFlash('Link in Zwischenablage kopiert', 'success');
     }).catch(err => {
-        console.error('Kopieren fehlgeschlagen', err);
-        alert('Kopieren fehlgeschlagen');
+        console.error('Kopieren fehlgeschlagen: ', err);
+        showAjaxFlash('Kopieren fehlgeschlagen', 'error');
     });
 }
 
@@ -1095,6 +1098,14 @@ function setupWebAuthnListener() {
     modal.addEventListener('click', async (e) => {
         if (e.target.id !== 'add-webauthn') return;
         
+        const nameInput = document.getElementById('webauthn-name');
+        const credentialName = nameInput ? nameInput.value.trim() : '';
+        
+        if (!credentialName) {
+            showAjaxFlash('Bitte gib dem Sicherheitsschlüssel zuerst einen Namen (z.B. Handy).', 'error');
+            return;
+        }
+        
         try {
             const challengeResponse = await fetch('actions/webauthn_register_challenge', {
                 method: 'POST'
@@ -1107,9 +1118,17 @@ function setupWebAuthnListener() {
             
             const challengeData = await challengeResponse.json();
 
+            let excludeCredentials = [];
+            if (challengeData.excludeCredentials) {
+                excludeCredentials = challengeData.excludeCredentials.map(cred => ({
+                    type: cred.type,
+                    id: Uint8Array.from(atob(cred.id.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
+                }));
+            }
+
             const credential = await navigator.credentials.create({
                 publicKey: {
-                    challenge: Uint8Array.from(atob(challengeData.challenge), c => c.charCodeAt(0)),
+                    challenge: Uint8Array.from(atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
                     rp: challengeData.rp,
                     user: {
                         id: Uint8Array.from(atob(challengeData.user.id), c => c.charCodeAt(0)),
@@ -1119,7 +1138,8 @@ function setupWebAuthnListener() {
                     pubKeyCredParams: challengeData.pubKeyCredParams,
                     authenticatorSelection: challengeData.authenticatorSelection,
                     timeout: challengeData.timeout,
-                    attestation: challengeData.attestation || 'direct'
+                    attestation: challengeData.attestation || 'direct',
+                    excludeCredentials: excludeCredentials
                 }
             });
 
@@ -1127,10 +1147,14 @@ function setupWebAuthnListener() {
                 throw new Error('Credential creation cancelled or failed');
             }
 
+            const nameInput = document.getElementById('webauthn-name');
+            const credentialName = nameInput ? nameInput.value.trim() : '';
+
             const verifyResponse = await fetch('actions/webauthn_register_verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    name: credentialName,
                     attestation: {
                         id: credential.id,
                         rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
@@ -1145,14 +1169,22 @@ function setupWebAuthnListener() {
             
             const verifyData = await verifyResponse.json();
             if (verifyResponse.ok && verifyData.success) {
-                alert('✓ Sicherheitsschlüssel erfolgreich hinzugefügt!');
+                if (nameInput) nameInput.value = ''; // clear input
+                showAjaxFlash('Sicherheitsschlüssel erfolgreich hinzugefügt!', 'success');
                 loadWebAuthnCredentials();
             } else {
-                alert('✗ ' + (verifyData.error || 'Registrierung fehlgeschlagen'));
+                showAjaxFlash(verifyData.error || 'Registrierung fehlgeschlagen', 'error');
             }
         } catch (error) {
             console.error('WebAuthn register error:', error);
-            alert('WebAuthn-Fehler: ' + error.message);
+            if (error.name === 'InvalidStateError') {
+                showAjaxFlash('Dieser Sicherheitsschlüssel ist bereits registriert.', 'error');
+            } else if (error.name === 'NotAllowedError') {
+                // Silently ignore: The user cancelled or the browser already showed a native block dialog
+                console.warn('WebAuthn cancelled or blocked by user/browser');
+            } else {
+                showAjaxFlash('WebAuthn-Fehler: ' + error.message, 'error');
+            }
         }
     });
 }
@@ -1197,14 +1229,14 @@ async function deleteWebAuthnCredential(credentialId, credentialName) {
         
         const data = await response.json();
         if (response.ok && data.success) {
-            alert('✓ Sicherheitsschlüssel gelöscht!');
+            showAjaxFlash('Sicherheitsschlüssel gelöscht!', 'success');
             loadWebAuthnCredentials();
         } else {
-            alert('✗ ' + (data.error || 'Löschen fehlgeschlagen'));
+            showAjaxFlash(data.error || 'Löschen fehlgeschlagen', 'error');
         }
     } catch (error) {
         console.error('Error deleting credential:', error);
-        alert('Fehler beim Löschen: ' + error.message);
+        showAjaxFlash('Fehler beim Löschen: ' + error.message, 'error');
     }
 }
 

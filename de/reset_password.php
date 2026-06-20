@@ -33,9 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $token = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
     $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
     
-    // Alte Tokens invalidieren
-    $stmt_mark_all = $conn->prepare("UPDATE user_tokens SET used = 1 WHERE user_id = ? AND type = 'password_temp_code' AND used = 0");
-    if ($stmt_mark_all) { $stmt_mark_all->bind_param('i', $user_id); $stmt_mark_all->execute(); $stmt_mark_all->close(); }
+    // Alte Tokens bleiben absichtlich gültig, falls der Nutzer eine ältere E-Mail öffnet
     
     if (create_user_token($conn, $user_id, $token, 'password_temp_code', $expires)) {
         $_SESSION['last_code_sent_time'] = time();
@@ -64,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $new_password = isset($_POST['new_password']) ? $_POST['new_password'] : '';
     $confirm_new_password = isset($_POST['confirm_new_password']) ? $_POST['confirm_new_password'] : '';
 
-    if (empty($new_password) || strlen($new_password) < 8) {
-        set_flash_message('error_invalid_data', 'error');
+    if (empty($new_password) || !validate_password_strength($new_password)) {
+        set_flash_message('error_password_weak', 'error');
         redirect($current_language . '/reset_password');
     }
     if ($new_password !== $confirm_new_password) {
@@ -166,9 +164,9 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="action" value="set_password">
             
             <label for="new_password">Neues Passwort</label>
-            <input type="password" id="new_password" name="new_password" required minlength="8">
+            <input type="password" id="new_password" name="new_password" required minlength="8" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" title="Mindestens 8 Zeichen, Groß-, Kleinbuchstaben, Zahl und Sonderzeichen">
             <label for="confirm_new_password">Passwort bestätigen</label>
-            <input type="password" id="confirm_new_password" name="confirm_new_password" required minlength="8">
+            <input type="password" id="confirm_new_password" name="confirm_new_password" required minlength="8" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}" title="Mindestens 8 Zeichen, Groß-, Kleinbuchstaben, Zahl und Sonderzeichen">
             <button type="submit" class="button">Passwort speichern</button>
         </form>
     <?php else: ?>
@@ -213,9 +211,9 @@ require_once __DIR__ . '/../includes/header.php';
                 });
             </script>
 
-            <p style="margin-top: 15px; font-size: 0.9em; text-align: center;">
-                <a href="#" onclick="document.getElementById('method-token-view').style.display='none'; document.getElementById('method-backup-view').style.display='block'; return false;">Backup-Code nutzen</a>
-            </p>
+            <div style="margin-top: 15px; text-align: center;">
+                <button type="button" class="button" style="width: 100%;" onclick="document.getElementById('method-token-view').style.display='none'; document.getElementById('method-backup-view').style.display='block'; return false;">Backup-Code nutzen</button>
+            </div>
         </div>
 
         <div id="method-backup-view" style="display: none;">
