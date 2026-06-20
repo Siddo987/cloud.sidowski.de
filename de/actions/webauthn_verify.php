@@ -15,25 +15,39 @@ $input = json_decode(file_get_contents('php://input'), true);
 $username = trim($input['username'] ?? '');
 $assertion = $input['assertion'] ?? null;
 
-if (empty($username) || !$assertion) {
+if (!$assertion) {
     http_response_code(400);
-    echo json_encode(['error' => 'Username and assertion required']);
+    echo json_encode(['error' => 'Assertion required']);
     exit;
 }
 
-$is_email = filter_var($username, FILTER_VALIDATE_EMAIL);
-$column = $is_email ? 'email' : 'username';
-$stmt = $conn->prepare("SELECT id, username, role, session_version FROM users WHERE {$column} = ? AND deleted = 0");
-if (!$stmt) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Database error']);
-    exit;
+$user = null;
+if (!empty($username)) {
+    $is_email = filter_var($username, FILTER_VALIDATE_EMAIL);
+    $column = $is_email ? 'email' : 'username';
+    $stmt = $conn->prepare("SELECT id, username, role, session_version FROM users WHERE {$column} = ? AND deleted = 0");
+    if (!$stmt) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Database error']);
+        exit;
+    }
+    $stmt->bind_param('s', $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $user = $result->fetch_assoc();
+    $stmt->close();
+} else {
+    // Discoverable credential login (Passkey): find user by credential ID
+    $credential = get_webauthn_credential_by_id($conn, $assertion['id']);
+    if ($credential) {
+        $stmt = $conn->prepare("SELECT id, username, role, session_version FROM users WHERE id = ? AND deleted = 0");
+        $stmt->bind_param('i', $credential['user_id']);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+    }
 }
-$stmt->bind_param('s', $username);
-$stmt->execute();
-$result = $stmt->get_result();
-$user = $result->fetch_assoc();
-$stmt->close();
 
 if (!$user) {
     http_response_code(404);
@@ -60,6 +74,6 @@ try {
 } catch (Exception $e) {
     error_log('WebAuthn verify error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Verification failed']);
+    echo json_encode(['error' => 'Verification failed: ' . $e->getMessage()]);
 }
 ?>

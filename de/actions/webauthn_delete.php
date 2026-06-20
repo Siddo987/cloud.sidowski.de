@@ -32,7 +32,19 @@ $user_id = $_SESSION['user_id'];
 $success = delete_webauthn_credential($conn, $credential_id, $user_id);
 
 if ($success) {
-    echo json_encode(['success' => true, 'message' => 'Credential deleted']);
+    // Kaskadierende Invalidierung aller anderen Sessions
+    $stmt = $conn->prepare("UPDATE users SET session_version = session_version + 1 WHERE id = ?");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    
+    // Die aktuelle Session auf die neue Version updaten, damit der User NICHT ausgeloggt wird
+    $stmt_check = $conn->prepare("SELECT session_version FROM users WHERE id = ?");
+    $stmt_check->bind_param("i", $user_id);
+    $stmt_check->execute();
+    $res = $stmt_check->get_result()->fetch_assoc();
+    $_SESSION["session_version"] = $res["session_version"];
+    
+    echo json_encode(["success" => true, "message" => "Credential deleted"]);
 } else {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to delete credential']);

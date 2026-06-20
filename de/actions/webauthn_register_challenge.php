@@ -28,6 +28,15 @@ create_webauthn_challenge($conn, $user_id, $challenge, 'registration');
 // Hole WebAuthn Konfiguration
 $config = get_webauthn_config();
 
+$existing_credentials = get_user_webauthn_credentials($conn, $user_id);
+$excludeCredentials = [];
+foreach ($existing_credentials as $cred) {
+    $excludeCredentials[] = [
+        'type' => 'public-key',
+        'id' => $cred['credential_id_b64']
+    ];
+}
+
 echo json_encode([
     'challenge' => $challenge,
     'rp' => [
@@ -47,6 +56,7 @@ echo json_encode([
         'userVerification' => 'preferred'
     ],
     'timeout' => 60000,
-    'attestation' => 'direct'
+    'attestation' => 'none',
+    'excludeCredentials' => $excludeCredentials
 ]);
 ?>

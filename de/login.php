@@ -7,6 +7,8 @@ if ($is_logged_in) {
     redirect($current_language . '/dashboard');
 }
 
+$is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
 $error_message = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf_token();
@@ -61,6 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
 
+                    if ($is_ajax) {
+                        $path = ltrim($current_language . '/2fa_challenge', '/');
+                        $url = (defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : '') . '/' . $path;
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => true, 'redirect_url' => $url]);
+                        exit;
+                    }
                     redirect($current_language . '/2fa_challenge');
                 }
 
@@ -70,6 +79,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'];
                 $_SESSION['session_version'] = isset($user['session_version']) ? (int)$user['session_version'] : 0;
+                
+                if ($is_ajax) {
+                    $path = ltrim($current_language . '/dashboard', '/');
+                    $url = (defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : '') . '/' . $path;
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => true, 'redirect_url' => $url]);
+                    exit;
+                }
                 redirect($current_language . '/dashboard');
             } else {
                 $error_message = lang('error_login_failed');
@@ -80,6 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     if ($error_message) {
+        if ($is_ajax) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => $error_message]);
+            exit;
+        }
         set_flash_message($error_message, 'error');
         redirect($current_language . '/login');
     }
@@ -91,7 +113,10 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card auth-card">
     <h1><?php echo lang('title_login'); ?></h1>
 
+    
+    <div id="globalError" style="color:red; margin-bottom: 10px;"></div>
     <form id="login-form" method="post" action="login">
+
         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
 
         <div class="form-group">
@@ -108,7 +133,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
 
         <button type="submit" id="login-btn" class="button"><?php echo lang('button_login'); ?></button>
-        <button type="button" id="webauthn-btn" class="button button-primary" style="display:none; margin-top: 10px; width: 100%;"><?php echo lang('button_login_webauthn'); ?></button>
+        <button type="button" id="webauthn-btn" class="button" style="display:none; margin-top: 10px;"><?php echo lang('button_login_webauthn'); ?></button>
     </form>
 
     <div class="auth-links">
@@ -118,7 +143,100 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+
+document.getElementById("login-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    document.querySelectorAll(".error-text").forEach(el => el.textContent = "");
+    const globalErr = document.getElementById("globalError");
+    if(globalErr) globalErr.textContent = "";
+    
+    try {
+        const response = await fetch("login.php", {
+            method: "POST",
+            body: formData,
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        
+        const data = await response.json();
+        if (response.ok && data.success) {
+            window.location.href = data.redirect_url;
+        } else {
+            if (data.errors && data.errors.password) {
+                let pErr = document.getElementById("passwordError");
+                if(!pErr) {
+                    pErr = document.createElement("span");
+                    pErr.id = "passwordError";
+                    pErr.className = "error-text";
+                    pErr.style.color = "red";
+                    document.getElementById("password-group").appendChild(pErr);
+                }
+                pErr.textContent = data.errors.password;
+            } else if (data.error) {
+                if(globalErr) globalErr.textContent = data.error;
+            }
+            document.getElementById("password").value = "";
+        }
+    } catch (err) {
+        if(globalErr) globalErr.textContent = "Netzwerkfehler.";
+        document.getElementById("password").value = "";
+    }
+});
+
 let webauthnChallengeData = null;
+let conditionalWebAuthnAbortController = null;
+
+if (window.PublicKeyCredential) {
+    // Starte sofort die WebAuthn-Abfrage beim Laden der Seite
+    startAggressivePasskeyLogin();
+}
+
+async function startAggressivePasskeyLogin() {
+    try {
+        const challengeResponse = await fetch('actions/webauthn_challenge', { method: 'POST', body: JSON.stringify({username: ''}) });
+        if (!challengeResponse.ok) return;
+        const challengeData = await challengeResponse.json();
+        
+        const assertion = await navigator.credentials.get({
+            publicKey: {
+                challenge: Uint8Array.from(atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
+                allowCredentials: [],
+                userVerification: 'required'
+            }
+        });
+        
+        // Verifiziere
+        const verifyResponse = await fetch('actions/webauthn_verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: '',
+                assertion: {
+                    id: assertion.id,
+                    rawId: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId))),
+                    response: {
+                        authenticatorData: btoa(String.fromCharCode(...new Uint8Array(assertion.response.authenticatorData))),
+                        clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(assertion.response.clientDataJSON))),
+                        signature: btoa(String.fromCharCode(...new Uint8Array(assertion.response.signature))),
+                        userHandle: assertion.response.userHandle ? btoa(String.fromCharCode(...new Uint8Array(assertion.response.userHandle))) : null
+                    },
+                    type: assertion.type
+                }
+            })
+        });
+
+        const verifyData = await verifyResponse.json();
+        if (verifyResponse.ok && verifyData.success) {
+            window.location.href = 'dashboard';
+        } else {
+            showAjaxFlash(verifyData.error || 'Authentifizierung fehlgeschlagen', 'error');
+        }
+    } catch (e) {
+        // Ignoriere Fehler, wenn der Benutzer den Dialog abbricht
+        console.log('Automatischer WebAuthn-Login abgebrochen oder fehlgeschlagen:', e);
+    }
+}
 
 document.getElementById('username').addEventListener('blur', async function() {
     const username = this.value.trim();
@@ -127,7 +245,6 @@ document.getElementById('username').addEventListener('blur', async function() {
         return;
     }
 
-    // Prüfe, ob WebAuthn verfügbar ist
     try {
         const challengeResponse = await fetch('actions/webauthn_challenge', {
             method: 'POST',
@@ -136,19 +253,44 @@ document.getElementById('username').addEventListener('blur', async function() {
         });
         if (challengeResponse.ok) {
             webauthnChallengeData = await challengeResponse.json();
+            document.getElementById('webauthn-btn').textContent = 'Mit Passkey anmelden';
             document.getElementById('webauthn-btn').style.display = 'block';
         } else {
+            webauthnChallengeData = null;
             document.getElementById('webauthn-btn').style.display = 'none';
         }
     } catch (error) {
+        webauthnChallengeData = null;
         document.getElementById('webauthn-btn').style.display = 'none';
     }
 });
 
-document.getElementById('webauthn-btn').addEventListener('click', function() {
+document.getElementById('webauthn-btn').addEventListener('click', async function() {
+    if (conditionalWebAuthnAbortController) {
+        conditionalWebAuthnAbortController.abort();
+        conditionalWebAuthnAbortController = null;
+    }
+
     const username = document.getElementById('username').value.trim();
-    if (webauthnChallengeData && username) {
+    
+    // If we have a username and pre-fetched challenge, use it
+    if (username && webauthnChallengeData && webauthnChallengeData.allowCredentials && webauthnChallengeData.allowCredentials.length > 0) {
         performWebAuthnLogin(username, webauthnChallengeData);
+        return;
+    }
+    
+    // Otherwise, fetch an anonymous discoverable challenge
+    try {
+        const challengeResponse = await fetch('actions/webauthn_challenge', { method: 'POST', body: JSON.stringify({username: ''}) });
+        if (!challengeResponse.ok) {
+            const err = await challengeResponse.json();
+            showAjaxFlash(err.error || 'Challenge fehlgeschlagen', 'error');
+            return;
+        }
+        const challengeData = await challengeResponse.json();
+        performWebAuthnLogin('', challengeData);
+    } catch (error) {
+        showAjaxFlash('Fehler beim Abrufen der WebAuthn Challenge.', 'error');
     }
 });
 
@@ -156,9 +298,9 @@ async function performWebAuthnLogin(username, challengeData) {
     try {
         const assertion = await navigator.credentials.get({
             publicKey: {
-                challenge: Uint8Array.from(atob(challengeData.challenge), c => c.charCodeAt(0)),
+                challenge: Uint8Array.from(atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
                 allowCredentials: challengeData.allowCredentials.map(cred => ({
-                    id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+                    id: Uint8Array.from(atob(cred.id.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
                     type: cred.type
                 })),
                 userVerification: 'preferred'
@@ -188,11 +330,11 @@ async function performWebAuthnLogin(username, challengeData) {
         if (verifyResponse.ok && verifyData.success) {
             window.location.href = 'dashboard';
         } else {
-            alert(verifyData.error || 'Authentifizierung fehlgeschlagen');
+            showAjaxFlash(verifyData.error || 'Authentifizierung fehlgeschlagen', 'error');
         }
     } catch (error) {
-        console.error('WebAuthn error:', error);
-        alert('WebAuthn Fehler: ' + error.message);
+        console.error('WebAuthn Fehler:', error);
+        showAjaxFlash('WebAuthn Fehler: ' + error.message, 'error');
     }
 }
 

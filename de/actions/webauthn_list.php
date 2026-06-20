@@ -16,4 +16,3 @@ $user_id = $_SESSION['user_id'];
 $credentials = get_user_webauthn_credentials($conn, $user_id);
 
 echo json_encode($credentials);
-?>

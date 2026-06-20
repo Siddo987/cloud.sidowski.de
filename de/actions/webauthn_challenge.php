@@ -15,8 +15,14 @@ $input = json_decode(file_get_contents('php://input'), true);
 $username = trim($input['username'] ?? '');
 
 if (empty($username)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Username required']);
+    try {
+        $challenge_data = generate_webauthn_discoverable_challenge();
+        echo json_encode($challenge_data);
+    } catch (Exception $e) {
+        error_log('WebAuthn discoverable challenge error: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to generate challenge']);
+    }
     exit;
 }
 

@@ -37,30 +37,41 @@ function create_webauthn_challenge($conn, $user_id, $challenge, $type = 'registr
  * Challenge aus der Datenbank validieren und als "used" markieren
  */
 function validate_and_use_challenge($conn, $challenge, $type = 'registration') {
+    // WebAuthn challenges from clientDataJSON are Base64URL encoded, but DB might store standard Base64.
+    $challenge_b64 = strtr($challenge, '-_', '+/');
+    $challenge_b64 = str_pad($challenge_b64, strlen($challenge_b64) + ((4 - (strlen($challenge_b64) % 4)) % 4), '=', STR_PAD_RIGHT);
+
     $now = date('Y-m-d H:i:s');
     
-    // Prüfe ob Challenge existiert, valide ist und noch nicht verwendet wurde
-    $stmt = $conn->prepare("
-        SELECT id, user_id FROM webauthn_challenges 
-        WHERE challenge = ? AND type = ? AND used = FALSE AND expires_at > ?
-        LIMIT 1
-    ");
+    // Atomares Update, um Race Conditions zu verhindern
+    $update_stmt = $conn->prepare("UPDATE webauthn_challenges SET used = TRUE WHERE (challenge = ? OR challenge = ?) AND type = ? AND used = FALSE AND expires_at > ?");
+    if (!$update_stmt) return null;
+    
+    $update_stmt->bind_param('ssss', $challenge, $challenge_b64, $type, $now);
+    $update_stmt->execute();
+    
+    if ($update_stmt->affected_rows === 0) {
+        $update_stmt->close();
+        return null; // Challenge invalid, abgelaufen oder bereits verwendet
+    }
+    $update_stmt->close();
+    
+    // Wenn Update erfolgreich, hole id und user_id
+    $stmt = $conn->prepare("SELECT id, user_id FROM webauthn_challenges WHERE (challenge = ? OR challenge = ?) AND type = ? LIMIT 1");
     if (!$stmt) return null;
     
-    $stmt->bind_param('sss', $challenge, $type, $now);
+    $stmt->bind_param('sss', $challenge, $challenge_b64, $type);
     $stmt->execute();
     $result = $stmt->get_result();
     $row = $result->fetch_assoc();
     $stmt->close();
     
-    if (!$row) return null;
-    
-    // Markiere Challenge als verwendet
-    $update_stmt = $conn->prepare("UPDATE webauthn_challenges SET used = TRUE WHERE id = ?");
-    if ($update_stmt) {
-        $update_stmt->bind_param('i', $row['id']);
-        $update_stmt->execute();
-        $update_stmt->close();
+    // Cleanup: L�sche die Challenge direkt nach Validation
+    $delete_stmt = $conn->prepare("DELETE FROM webauthn_challenges WHERE id = ?");
+    if ($delete_stmt) {
+        $delete_stmt->bind_param('i', $row['id']);
+        $delete_stmt->execute();
+        $delete_stmt->close();
     }
     
     return $row;
@@ -88,25 +99,29 @@ function save_webauthn_credential($conn, $user_id, $credential_id_raw, $credenti
  * Lade alle WebAuthn Credentials eines Users
  */
 function get_user_webauthn_credentials($conn, $user_id) {
-    $stmt = $conn->prepare("
-        SELECT id, credential_id, public_key, counter, name, created_at, last_used
-        FROM webauthn_credentials 
-        WHERE user_id = ?
-        ORDER BY created_at DESC
-    ");
-    if (!$stmt) return [];
-    
-    $stmt->bind_param('i', $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $credentials = [];
-    
-    while ($row = $result->fetch_assoc()) {
-        $credentials[] = $row;
+    try {
+        $stmt = @$conn->prepare("
+            SELECT id, credential_id_b64, counter, name, created_at, last_used
+            FROM webauthn_credentials 
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+        ");
+        if (!$stmt) return [];
+        
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $credentials = [];
+        
+        while ($row = $result->fetch_assoc()) {
+            $credentials[] = $row;
+        }
+        
+        $stmt->close();
+        return $credentials;
+    } catch (\Exception $e) {
+        return [];
     }
-    
-    $stmt->close();
-    return $credentials;
 }
 
 /**
@@ -152,7 +167,7 @@ function generate_webauthn_auth_challenge($user_id) {
     $allowCredentials = [];
     foreach ($credentials as $cred) {
         $allowCredentials[] = [
-            'id' => $cred['credential_id'], // base64 encoded
+            'id' => $cred['credential_id_b64'], // base64 encoded
             'type' => 'public-key'
         ];
     }
@@ -161,6 +176,25 @@ function generate_webauthn_auth_challenge($user_id) {
         'challenge' => $challenge,
         'allowCredentials' => $allowCredentials,
         'userVerification' => 'preferred',
+        'timeout' => 60000
+    ];
+}
+
+/**
+ * Generiere Challenge für WebAuthn Discoverable Credentials (Passkey ohne Username)
+ */
+function generate_webauthn_discoverable_challenge() {
+    global $conn;
+    
+    $challenge = generate_webauthn_challenge();
+    
+    // Speichere Challenge mit user_id = 0
+    create_webauthn_challenge($conn, 0, $challenge, 'authentication');
+    
+    return [
+        'challenge' => $challenge,
+        'allowCredentials' => [], // Empty array for discoverable credentials
+        'userVerification' => 'required',
         'timeout' => 60000
     ];
 }
@@ -177,19 +211,19 @@ function validate_webauthn_assertion($user_id, $assertion) {
     $clientData = json_decode($clientDataJSON, true);
     
     if (!isset($clientData['challenge'])) {
-        return false;
+        throw new Exception("WebAuthn Error: No challenge in clientData");
     }
     
     // Hole Challenge
     $challenge_data = validate_and_use_challenge($conn, $clientData['challenge'], 'authentication');
-    if (!$challenge_data || $challenge_data['user_id'] != $user_id) {
-        return false;
+    if (!$challenge_data || ($challenge_data['user_id'] != 0 && $challenge_data['user_id'] != $user_id)) {
+        throw new Exception("WebAuthn Error: Invalid challenge or user_id mismatch. challenge_data: " . json_encode($challenge_data) . " user_id: $user_id");
     }
     
     // Hole Credential
     $credential = get_webauthn_credential_by_id($conn, $assertion['id']);
     if (!$credential) {
-        return false;
+        throw new Exception("WebAuthn Error: Credential not found for id: " . $assertion['id']);
     }
     
     // AuthenticatorData
@@ -206,25 +240,39 @@ function validate_webauthn_assertion($user_id, $assertion) {
     
     // Verify using Cose algorithm
     $decoder = new \CBOR\Decoder(new \CBOR\Tag\TagManager(), new \CBOR\OtherObject\OtherObjectManager());
-    $coseKeyData = $decoder->decode(new \CBOR\StringStream($credential['public_key']))->getNormalizedData();
+    $coseKeyData = $decoder->decode(new \CBOR\StringStream($credential['public_key']))->normalize();
     $coseKey = \Cose\Key\Key::createFromData($coseKeyData);
     
     $algId = $coseKey->alg();
-    $algorithmManager = new \Webauthn\AlgorithmManager([
+    $algorithmManager = \Cose\Algorithm\Manager::create()->add(
         new \Cose\Algorithm\Signature\ECDSA\ES256(),
         new \Cose\Algorithm\Signature\ECDSA\ES384(),
         new \Cose\Algorithm\Signature\ECDSA\ES512(),
         new \Cose\Algorithm\Signature\RSA\RS256(),
         new \Cose\Algorithm\Signature\RSA\RS384(),
         new \Cose\Algorithm\Signature\RSA\RS512(),
-        new \Cose\Algorithm\Signature\EdDSA\EdDSA(),
-    ]);
+        new \Cose\Algorithm\Signature\EdDSA\EdDSA()
+    );
     
     if (!$algorithmManager->has($algId)) {
-        throw new Exception("Unsupported algorithm");
+        throw new Exception("Unsupported algorithm: $algId");
     }
     
     $algorithm = $algorithmManager->get($algId);
+    
+    // WebAuthn ECDSA signatures are ASN.1 DER encoded, but COSE library expects raw (IEEE P1363)
+    if (in_array($algId, [-7, -35, -36], true)) {
+        $length = 64; // ES256
+        if ($algId === -35) $length = 96; // ES384
+        if ($algId === -36) $length = 132; // ES512
+        
+        try {
+            $signature = \Cose\Algorithm\Signature\ECDSA\ECSignature::fromAsn1($signature, $length);
+        } catch (Exception $e) {
+            error_log("WebAuthn Signature conversion warning: " . $e->getMessage());
+        }
+    }
+    
     $isValid = $algorithm->verify($dataToVerify, $coseKey, $signature);
     
     if ($isValid) {
@@ -236,14 +284,14 @@ function validate_webauthn_assertion($user_id, $assertion) {
         
         // Simple counter check: new counter > old counter, unless both are 0
         if ($newCounter > 0 && $newCounter <= $credential['counter']) {
-            return false; // Cloned authenticator or replay
+            throw new Exception("WebAuthn Error: Counter check failed. new: $newCounter, old: " . $credential['counter']);
         }
         
         update_credential_counter($conn, $credential['id'], max($newCounter, $credential['counter'] + 1));
         return true;
     }
     
-    return false;
+    throw new Exception("WebAuthn Error: Signature invalid");
 }
 
 /**
@@ -309,4 +357,5 @@ function get_webauthn_config() {
     ];
 }
 
-?>
+
+
