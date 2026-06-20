@@ -214,6 +214,13 @@ if (isset($_SESSION['upload_errors_details']) && is_array($_SESSION['upload_erro
             <small><?php echo sprintf(lang('text_max_file_size'), format_bytes($max_file_size)); ?></small>
         </div>
 
+        
+        <div class="upload-options" style="margin-bottom: 15px;">
+            <label>
+                <input type="checkbox" id="stripMetadata" name="stripMetadata" value="1" checked>
+                Metadaten (z. B. Standort, Kamera-Infos) entfernen
+            </label>
+        </div>
         <label for="file-list"><?php echo lang('label_selected_files'); ?></label>
         <?php // Füge data-Attribut hinzu, damit JS die Übersetzung hat für "Keine Dateien..." ?>
         <div class="file-list" id="file-list" data-no-files-text="<?php echo htmlspecialchars(lang('text_no_files_selected')); ?>">
