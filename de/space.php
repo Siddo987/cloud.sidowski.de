@@ -437,14 +437,18 @@ $breadcrumb = build_breadcrumb($conn, $current_folder_id, $current_user_id);
 // Ordner holen
 $folders_sql = "SELECT id, name, created_at FROM folders WHERE space_id = ? AND deleted = 0";
 $folders_params = [$current_user_id]; $folders_types = "i";
-if ($current_folder_id !== null) {
-    $folders_sql .= " AND parent_id " . ($current_folder_id ? "= ?" : "IS NULL");
-    if ($current_folder_id) {
+if (!empty($search_term)) {
+    $folders_sql .= " AND name LIKE ?";
+    $folders_params[] = '%' . $search_term . '%';
+    $folders_types .= "s";
+} else {
+    if ($current_folder_id !== null) {
+        $folders_sql .= " AND parent_id = ?";
         $folders_params[] = $current_folder_id;
         $folders_types .= "i";
+    } else {
+        $folders_sql .= " AND parent_id IS NULL";
     }
-} else {
-    $folders_sql .= " AND parent_id IS NULL";
 }
 $folders_sql .= " ORDER BY name ASC";
 $folders_stmt = $conn->prepare($folders_sql);
@@ -461,19 +465,18 @@ if ($folders_stmt) {
 // Dateien holen
 $files_sql = "SELECT id, filename, created_at, public, size FROM files WHERE space_id = ? AND deleted = 0";
 $files_params = [$current_user_id]; $files_types = "i";
-if ($current_folder_id !== null) {
-    $files_sql .= " AND folder_id " . ($current_folder_id ? "= ?" : "IS NULL");
-    if ($current_folder_id) {
-        $files_params[] = $current_folder_id;
-        $files_types .= "i";
-    }
-} else {
-    $files_sql .= " AND folder_id IS NULL";
-}
 if (!empty($search_term)) {
     $files_sql .= " AND filename LIKE ?";
     $files_params[] = '%' . $search_term . '%';
     $files_types .= "s";
+} else {
+    if ($current_folder_id !== null) {
+        $files_sql .= " AND folder_id = ?";
+        $files_params[] = $current_folder_id;
+        $files_types .= "i";
+    } else {
+        $files_sql .= " AND folder_id IS NULL";
+    }
 }
 $files_sql .= " ORDER BY created_at DESC";
 $files_stmt = $conn->prepare($files_sql);
@@ -502,12 +505,19 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
 </div>
 
 <!-- Breadcrumb -->
+<?php if (empty($search_term)): ?>
 <div class="breadcrumb">
     <a href="space?id=<?php echo $current_space_id; ?>" class="breadcrumb-link" data-target-folder="">Start</a>
     <?php foreach ($breadcrumb as $crumb): ?>
         / <a href="space?id=<?php echo $current_space_id; ?>&folder=<?php echo $crumb['id']; ?>" class="breadcrumb-link" data-target-folder="<?php echo $crumb['id']; ?>"><?php echo htmlspecialchars($crumb['name']); ?></a>
     <?php endforeach; ?>
 </div>
+<?php else: ?>
+<div class="breadcrumb">
+    <a href="space?id=<?php echo $current_space_id; ?>" class="breadcrumb-link">Start</a>
+    / Suchergebnisse für "<?php echo htmlspecialchars($search_term); ?>"
+</div>
+<?php endif; ?>
 
 <div class="card">
     <form method="GET" action="space?id=<?php echo $current_space_id; ?>" class="search-form-inline" style="margin-bottom: 20px;">
@@ -539,7 +549,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                                 </a>
                             </td>
                             <td><?php echo format_date_lang($folder['created_at']); ?></td>
-                            <td>-</td>
+                            <td><?php echo format_bytes(get_folder_size($conn, $folder['id'])); ?></td>
                             <td>-</td>
                             <td class="actions-cell">
                                 <button onclick="renameFolder(<?php echo $folder['id']; ?>, '<?php echo addslashes($folder['name']); ?>')" class="action-button" title="Umbenennen">

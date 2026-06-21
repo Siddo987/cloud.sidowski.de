@@ -63,6 +63,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action_taken = true;
     }
 
+    // Ordner erstellen
+    if (isset($_POST['create_folder'])) {
+        $folder_name = trim(isset($_POST['folder_name']) ? $_POST['folder_name'] : '');
+        $parent_id = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int)$_POST['parent_id'] : null;
+        
+        if (empty($folder_name)) {
+            set_flash_message('Ordnername darf nicht leer sein', 'error');
+            if ($ajax_mode) $ajax_response = ['success' => false, 'message' => 'Ordnername darf nicht leer sein'];
+        } elseif (!preg_match('/^[a-zA-Z0-9._\-\s\(\)]+$/', $folder_name) || strlen($folder_name) > 255) {
+            set_flash_message('Ungültiger Ordnername', 'error');
+            if ($ajax_mode) $ajax_response = ['success' => false, 'message' => 'Ungültiger Ordnername'];
+        } else {
+            // Check if folder exists
+            if ($parent_id === null) {
+                $stmt = $conn->prepare("SELECT id FROM folders WHERE name = ? AND parent_id IS NULL AND user_id = ? AND deleted = 0");
+                $stmt->bind_param("si", $folder_name, $current_user_id);
+            } else {
+                $stmt = $conn->prepare("SELECT id FROM folders WHERE name = ? AND parent_id = ? AND user_id = ? AND deleted = 0");
+                $stmt->bind_param("sii", $folder_name, $parent_id, $current_user_id);
+            }
+            $stmt->execute();
+            $stmt->store_result();
+            if ($stmt->num_rows > 0) {
+                set_flash_message('Ein Ordner mit diesem Namen existiert bereits.', 'error');
+                if ($ajax_mode) $ajax_response = ['success' => false, 'message' => 'Ein Ordner mit diesem Namen existiert bereits.'];
+            } else {
+                $stmt->close();
+                $stmt = $conn->prepare("INSERT INTO folders (name, user_id, parent_id) VALUES (?, ?, ?)");
+                $stmt->bind_param("sii", $folder_name, $current_user_id, $parent_id);
+                if ($stmt->execute()) {
+                    set_flash_message('Ordner erfolgreich erstellt', 'success');
+                    if ($ajax_mode) $ajax_response = ['success' => true, 'message' => 'Ordner erfolgreich erstellt', 'action' => 'create_folder'];
+                } else {
+                    set_flash_message('Fehler beim Erstellen des Ordners', 'error');
+                    if ($ajax_mode) $ajax_response = ['success' => false, 'message' => 'Fehler beim Erstellen des Ordners'];
+                }
+            }
+            $stmt->close();
+        }
+        $action_taken = true;
+    }
+
     // Ordner umbenennen
     if (isset($_POST['rename_folder'])) {
         $folder_id_rename = filter_input(INPUT_POST, 'folder_id', FILTER_VALIDATE_INT);
@@ -437,14 +479,18 @@ $breadcrumb = build_breadcrumb($conn, $current_folder_id, $current_user_id);
 // Ordner holen
 $folders_sql = "SELECT id, name, created_at FROM folders WHERE user_id = ? AND deleted = 0";
 $folders_params = [$current_user_id]; $folders_types = "i";
-if ($current_folder_id !== null) {
-    $folders_sql .= " AND parent_id " . ($current_folder_id ? "= ?" : "IS NULL");
-    if ($current_folder_id) {
+if (!empty($search_term)) {
+    $folders_sql .= " AND name LIKE ?";
+    $folders_params[] = '%' . $search_term . '%';
+    $folders_types .= "s";
+} else {
+    if ($current_folder_id !== null) {
+        $folders_sql .= " AND parent_id = ?";
         $folders_params[] = $current_folder_id;
         $folders_types .= "i";
+    } else {
+        $folders_sql .= " AND parent_id IS NULL";
     }
-} else {
-    $folders_sql .= " AND parent_id IS NULL";
 }
 $folders_sql .= " ORDER BY name ASC";
 $folders_stmt = $conn->prepare($folders_sql);
@@ -461,19 +507,18 @@ if ($folders_stmt) {
 // Dateien holen
 $files_sql = "SELECT id, filename, created_at, public, size FROM files WHERE uploader_id = ? AND deleted = 0";
 $files_params = [$current_user_id]; $files_types = "i";
-if ($current_folder_id !== null) {
-    $files_sql .= " AND folder_id " . ($current_folder_id ? "= ?" : "IS NULL");
-    if ($current_folder_id) {
-        $files_params[] = $current_folder_id;
-        $files_types .= "i";
-    }
-} else {
-    $files_sql .= " AND folder_id IS NULL";
-}
 if (!empty($search_term)) {
     $files_sql .= " AND filename LIKE ?";
     $files_params[] = '%' . $search_term . '%';
     $files_types .= "s";
+} else {
+    if ($current_folder_id !== null) {
+        $files_sql .= " AND folder_id = ?";
+        $files_params[] = $current_folder_id;
+        $files_types .= "i";
+    } else {
+        $files_sql .= " AND folder_id IS NULL";
+    }
 }
 $files_sql .= " ORDER BY created_at DESC";
 $files_stmt = $conn->prepare($files_sql);
@@ -494,20 +539,25 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
 
 <div class="view-header">
     <h1><?php echo lang('title_my_files'); ?></h1>
-    <div class="nav-actions">
-        <a href="create_folder<?php echo isset($_GET['folder']) && $_GET['folder'] ? '?folder=' . (int)$_GET['folder'] : ''; ?>" class="button button-primary" style="text-decoration: none;">
-            Neuer Ordner
-        </a>
-    </div>
+      <div class="nav-actions">
+          <button class="button button-primary" onclick="openCreateFolderModal()">Neuer Ordner</button>
+      </div>
 </div>
 
 <!-- Breadcrumb -->
+<?php if (empty($search_term)): ?>
 <div class="breadcrumb">
     <a href="own_files" class="breadcrumb-link" data-target-folder="">Start</a>
     <?php foreach ($breadcrumb as $crumb): ?>
         / <a href="own_files?folder=<?php echo $crumb['id']; ?>" class="breadcrumb-link" data-target-folder="<?php echo $crumb['id']; ?>"><?php echo htmlspecialchars($crumb['name']); ?></a>
     <?php endforeach; ?>
 </div>
+<?php else: ?>
+<div class="breadcrumb">
+    <a href="own_files" class="breadcrumb-link">Start</a>
+    / Suchergebnisse für "<?php echo htmlspecialchars($search_term); ?>"
+</div>
+<?php endif; ?>
 
 <div class="card">
     <form method="GET" action="own_files" class="search-form-inline" style="margin-bottom: 20px;">
@@ -539,7 +589,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                                 </a>
                             </td>
                             <td><?php echo format_date_lang($folder['created_at']); ?></td>
-                            <td>-</td>
+                            <td><?php echo format_bytes(get_folder_size($conn, $folder['id'], $current_user_id)); ?></td>
                             <td>-</td>
                             <td class="actions-cell">
                                 <button onclick="renameFolder(<?php echo $folder['id']; ?>, '<?php echo addslashes($folder['name']); ?>')" class="action-button" title="Umbenennen">
@@ -742,7 +792,111 @@ document.addEventListener('DOMContentLoaded', function() {
         postAjaxAction(payload);
     }
 });
+
+function shareFile(fileId) {
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    fetch('ajax_short_url.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'file_id=' + fileId + '&csrf_token=' + encodeURIComponent(csrfToken)
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(data.short_url).then(() => {
+                    alert('Kurzlink in die Zwischenablage kopiert:\n' + data.short_url);
+                }).catch(err => {
+                    prompt('Konnte Link nicht automatisch kopieren. Bitte manuell kopieren:', data.short_url);
+                });
+            } else {
+                prompt('Kurzlink generiert. Bitte manuell kopieren:', data.short_url);
+            }
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ein Fehler ist aufgetreten: ' + error.message);
+    });
+}
+
+function openCreateFolderModal() {
+    let modal = document.getElementById('createFolderModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        document.getElementById('new_folder_name').focus();
+    }
+}
+
+function closeCreateFolderModal() {
+    let modal = document.getElementById('createFolderModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
+function submitCreateFolderModal() {
+    let folderName = document.getElementById('new_folder_name').value.trim();
+    if (!folderName) {
+        alert('Bitte gib einen Ordnernamen ein.');
+        return;
+    }
+    
+    let parentId = document.getElementById('create_folder_parent_id').value;
+    
+    let formData = new URLSearchParams();
+    formData.append('create_folder', '1');
+    formData.append('folder_name', folderName);
+    formData.append('parent_id', parentId);
+    formData.append('ajax', '1');
+    formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    })
+    .catch(err => {
+        alert('Netzwerkfehler: ' + err.message);
+    });
+}
 </script>
+
+<!-- Create Folder Modal -->
+<div id="createFolderModal" class="modal-overlay" aria-hidden="true" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="modal-dialog" style="background: var(--card-bg); padding: 20px; border-radius: 8px; width: 400px; max-width: 90%;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">Neuer Ordner</h3>
+            <button type="button" class="modal-close" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;" onclick="closeCreateFolderModal()">×</button>
+        </div>
+        <div class="modal-content">
+            <input type="hidden" id="create_folder_parent_id" value="<?php echo $current_folder_id ?: ''; ?>" />
+            <label style="display: block; margin-bottom: 5px;">Ordnername:</label>
+            <input type="text" id="new_folder_name" class="form-control" style="width: 100%; margin-bottom: 15px;" placeholder="z.B. Bilder">
+        </div>
+        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+            <button type="button" class="button button-secondary" onclick="closeCreateFolderModal()">Abbrechen</button>
+            <button type="button" class="button button-primary" onclick="submitCreateFolderModal()">Erstellen</button>
+        </div>
+    </div>
+</div>
 
 <?php
 require_once __DIR__ . '/../includes/footer.php'; // Footer am Ende
