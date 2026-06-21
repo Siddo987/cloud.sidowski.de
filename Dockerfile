@@ -1,4 +1,4 @@
-FROM php:8.2-apache
+FROM php:8.5-apache
 
 # Enable Apache mod_rewrite for nice URLs if used (.htaccess)
 RUN a2enmod rewrite
