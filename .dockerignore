@@ -1,0 +1,10 @@
+.git
+.gitignore
+vendor/
+user_uploads/
+temp/
+*.log
+.env
+.idea/
+.vscode/
+node_modules/

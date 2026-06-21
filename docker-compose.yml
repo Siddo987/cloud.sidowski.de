@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: datei_wolke_app
+    ports:
+      - "8080:80"
+    volumes:
+      # Mount host directories directly so you have easy access to files, similar to Lychee
+      - ./user_uploads:/var/www/html/user_uploads
+      # - ./logs:/var/www/html/logs # (If you add logging later)
+      - ./temp:/var/www/html/temp
+    env_file:
+      - .env
+    environment:
+      # Ensure the app connects to the mariadb container
+      DB_SERVER: db
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mariadb:10.11
+    container_name: datei_wolke_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root_fallback_password}
+      MYSQL_DATABASE: ${DB_NAME:-datei_wolke}
+      MYSQL_USER: ${DB_USERNAME:-wolke_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-wolke_password}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      # Modern way to check if MariaDB is ready to accept connections
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db_data:
