@@ -46,6 +46,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Globale sprachunabhängige Kernfunktionen laden
 require_once __DIR__ . '/functions_core.php';
+require_once __DIR__ . '/functions_yourls.php';
 
 // Composer Autoloader laden
 $composer_autoload_available = true;

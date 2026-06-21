@@ -7,3 +7,4 @@ tmp_*.php
 /.env.local
 /user_uploads/
 *.log
+Thumbs.db

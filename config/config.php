@@ -12,7 +12,8 @@ define('DB_PASSWORD', $DB_PASSWORD);
 define('DB_NAME', $DB_NAME);
 
 // --- Anwendungseinstellungen ---
-define('APP_NAME', 'Datei Wolke');
+$app_name = getenv('APP_NAME');
+define('APP_NAME', $app_name !== false ? $app_name : 'Datei Wolke');
 // Basis-URL deiner Anwendung (Leer lassen fÃ¼r relative Pfade, oder z.B. 'https://cloud.sidowski.de')
 // Wichtig fÃ¼r absolute URLs in Redirects etc. KEIN abschlieÃŸender Slash!
 // BASE_URL aus ENV oder Fallback
@@ -41,26 +42,28 @@ if (!defined('TWOFACTOR_DEBUG')) define('TWOFACTOR_DEBUG', true);
 
 /**
  * WICHTIG: Der Pfad zum Haupt-Upload-Verzeichnis.
- * 1. PrÃ¼fe, ob dieser Pfad auf deinem Server KORREKT ist!
- * `dirname(__DIR__)` zeigt auf das Projekt-Hauptverzeichnis.
- * Der Pfad hier sollte also zu `/www/htdocs/w01f392f/cloud.sidowski.de/user_uploads` fÃ¼hren.
- * 2. Existiert das Verzeichnis `/user_uploads` im Hauptverzeichnis? Wenn nicht, erstellen!
- * 3. Hat der Webserver-Benutzer SCHREIB- und AUSFÃœHRUNGSRECHTE fÃ¼r dieses `user_uploads`-Verzeichnis?
- * -> `chmod 755 user_uploads` oder `chmod 775 user_uploads` auf dem Server ausfÃ¼hren.
  */
-define('USER_UPLOAD_DIR', dirname(__DIR__) . '/user_uploads');
+$env_upload_dir = getenv('USER_UPLOAD_DIR');
+define('USER_UPLOAD_DIR', $env_upload_dir !== false && $env_upload_dir !== '' ? dirname(__DIR__) . '/' . $env_upload_dir : dirname(__DIR__) . '/user_uploads');
 
 
 // Erlaubte Dateiendungen (Kleinbuchstaben!)
-$ALLOWED_FILE_TYPES = [
-    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'txt', 'rtf', 'csv',
-    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico',
-    'mp3', 'wav', 'ogg', 'm4a',
-    'mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm',
-    'zip', 'rar', '7z', 'tar', 'gz'
-];
-// Max. Upload-GrÃ¶ÃŸe pro Datei in Bytes (100MB). Muss <= PHP-Limits sein!
-define('MAX_FILE_SIZE', 100 * 1024 * 1024);
+$env_allowed_types = getenv('ALLOWED_FILE_TYPES');
+if ($env_allowed_types !== false && $env_allowed_types !== '') {
+    $ALLOWED_FILE_TYPES = array_map('trim', explode(',', strtolower($env_allowed_types)));
+} else {
+    $ALLOWED_FILE_TYPES = [
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'txt', 'rtf', 'csv',
+        'jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico',
+        'mp3', 'wav', 'ogg', 'm4a',
+        'mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm',
+        'zip', 'rar', '7z', 'tar', 'gz'
+    ];
+}
+
+// Max. Upload-Größe pro Datei in Bytes
+$env_max_size = getenv('MAX_FILE_SIZE');
+define('MAX_FILE_SIZE', $env_max_size !== false && is_numeric($env_max_size) ? (int)$env_max_size : 100 * 1024 * 1024);
 
 // --- Kontakt Einstellungen ---
 define('CONTACT_PHONE', getenv('CONTACT_PHONE') ?: '');

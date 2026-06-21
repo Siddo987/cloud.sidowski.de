@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build: .
@@ -9,13 +7,10 @@ services:
     volumes:
       # Mount host directories directly so you have easy access to files, similar to Lychee
       - ./user_uploads:/var/www/html/user_uploads
-      # - ./logs:/var/www/html/logs # (If you add logging later)
+      - ./log:/var/www/html/log
       - ./temp:/var/www/html/temp
     env_file:
       - .env
-    environment:
-      # Ensure the app connects to the mariadb container
-      DB_SERVER: db
     depends_on:
       db:
         condition: service_healthy
@@ -24,11 +19,8 @@ services:
   db:
     image: mariadb:10.11
     container_name: datei_wolke_db
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root_fallback_password}
-      MYSQL_DATABASE: ${DB_NAME:-datei_wolke}
-      MYSQL_USER: ${DB_USERNAME:-wolke_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-wolke_password}
+    env_file:
+      - .env
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:

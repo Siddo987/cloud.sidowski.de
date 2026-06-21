@@ -1,4 +1,4 @@
-# Cloud Sidowski
+# Datei Wolke
 
 A secure, feature-rich file management and sharing platform built with PHP, offering advanced authentication mechanisms and multi-language support.
 
@@ -13,15 +13,16 @@ A secure, feature-rich file management and sharing platform built with PHP, offe
 
 ### File Management
 - **File Upload & Download** - Easy file uploading and downloading
-- **Public File Sharing** - Share files publicly with others
+- **Advanced File Sharing** - Share files publicly, restrict to logged-in users, or grant access to specific users only
 - **File Organization** - Organize files by folders
-- **Deleted Files Management** - Recover or permanently delete files
+- **Trash & Auto-Cleanup** - Recover deleted files. Trash is automatically emptied after 90 days
 - **User-specific Storage** - Isolated file storage per user
 
 ### User Management
 - **User Registration** - Self-service account creation
 - **User Profiles** - Manage user information and preferences
 - **Admin Dashboard** - Monitor all users and files
+- **Debug Dashboard** - Identify and restore physical orphan files (files without DB entry)
 - **User Impersonation** - Admin capability to access user accounts for support
 
 ### Internationalization
@@ -36,7 +37,21 @@ A secure, feature-rich file management and sharing platform built with PHP, offe
 - Database (as configured in config files)
 - Modern browser with WebAuthn support (for passwordless authentication)
 
-## Installation
+## Installation (Docker / Recommended)
+
+1. Clone the repository to your server:
+   ```bash
+   cd /path/to/cloud.sidowski.de
+   ```
+
+2. Build and start the Docker containers:
+   ```bash
+   docker-compose build
+   docker-compose up -d
+   ```
+   *Note: The included Dockerfile automatically installs and configures a cron daemon that runs nightly cleanup tasks (e.g., removing files older than 90 days).*
+
+## Installation (Manual)
 
 1. Clone the repository or extract the files to your web server directory:
    ```bash
@@ -127,5 +142,5 @@ For issues, feature requests, or bug reports, please contact the development tea
 
 ---
 
-**Version**: 1.0  
-**Last Updated**: 2026-06-12
+**Version**: 1.1  
+**Last Updated**: 2026-06-21
