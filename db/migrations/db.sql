@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS `files` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted` tinyint(1) NOT NULL DEFAULT '0',
   `deleted_at` datetime DEFAULT NULL,
+  `physical_path` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `uploader_id` (`uploader_id`),
   KEY `idx_files_deleted` (`deleted`),
@@ -101,6 +102,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `two_factor_secret` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
   `two_factor_backup_codes` text COLLATE utf8_unicode_ci COMMENT 'JSON array of hashed backup codes',
   `unlimited_upload` tinyint(1) DEFAULT '0',
+  `last_login` datetime DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_users_email` (`email`)
 ) ENGINE=InnoDB  DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci AUTO_INCREMENT=29 ;
@@ -175,6 +178,24 @@ CREATE TABLE IF NOT EXISTS `webauthn_credentials` (
   KEY `idx_user_id` (`user_id`),
   KEY `idx_credential_id_b64` (`credential_id_b64`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;
+
+-- --------------------------------------------------------
+
+--
+-- Tabellenstruktur für Tabelle `rate_limits`
+--
+
+CREATE TABLE IF NOT EXISTS `rate_limits` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ip_address` varchar(45) NOT NULL,
+  `action` varchar(50) NOT NULL,
+  `attempts` int(11) NOT NULL DEFAULT '1',
+  `locked_until` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ip_action_idx` (`ip_address`,`action`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Constraints der exportierten Tabellen
