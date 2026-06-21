@@ -10,6 +10,7 @@ $base_path = defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : ''; // Bas
 ?>
 <?php // -- Direkte Links -- ?>
 <a href="<?php echo htmlspecialchars($base_path . $lang_prefix); ?>dashboard" class="<?php echo $current_script == 'dashboard' ? 'active' : ''; ?>"><?php echo lang('nav_dashboard'); ?></a>
+<a href="<?php echo htmlspecialchars($base_path . $lang_prefix); ?>tickets" class="<?php echo $current_script == 'tickets' || $current_script == 'ticket_view' ? 'active' : ''; ?>"><?php echo lang('nav_tickets'); ?></a>
 <a href="<?php echo htmlspecialchars($base_path . $lang_prefix); ?>upload" class="button <?php echo $current_script == 'upload' ? 'active' : ''; ?>"><?php echo lang('button_upload'); ?></a>
 
 
@@ -42,7 +43,9 @@ $base_path = defined('BASE_URL') && BASE_URL ? rtrim(BASE_URL, '/') : ''; // Bas
     </button>
     <div class="dropdown-menu">
          <a href="<?php echo htmlspecialchars($base_path . $lang_prefix); ?>all_users" class="<?php echo $current_script == 'all_users' ? 'active' : ''; ?> dropdown-item"><?php echo lang('nav_all_users'); ?></a>
-         <?php // Weitere Admin-Links hier einfügen, z.B. Logs, System-Einstellungen... ?>
+         <a href="<?php echo htmlspecialchars($base_path . $lang_prefix); ?>admin_tickets?status=open" class="<?php echo $current_script == 'admin_tickets' || $current_script == 'admin_ticket_view' ? 'active' : ''; ?> dropdown-item"><?php echo lang('nav_admin_tickets'); ?></a>
+         <hr class="dropdown-divider">
+         <a href="<?php echo htmlspecialchars($base_path . $lang_prefix); ?>admin_debug" class="<?php echo $current_script == 'admin_debug' ? 'active' : ''; ?> dropdown-item">⚙️ Debug Dashboard</a>
     </div>
 </div>
 <?php endif; ?>
