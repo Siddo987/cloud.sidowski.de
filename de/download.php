@@ -4,7 +4,7 @@
 // Alle Ausgaben unterdrücken, um saubere binary Response zu gewährleisten
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/download_error.log');
+ini_set('error_log', __DIR__ . '/../log/download_error.log');
 ini_set('zlib.output_compression', 'Off');
 error_reporting(E_ALL);
 ob_start(); // Output-Buffer starten

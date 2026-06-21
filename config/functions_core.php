@@ -178,14 +178,14 @@ function send_email($to, $subject, $body, $is_html = true) {
             $mail->Body = $body;
             // Send
             $mail->preSend();
-            error_log($mail->createHeader(), 3, __DIR__ . '/phpmailer_headers.log');
+            error_log($mail->createHeader(), 3, __DIR__ . '/../log/phpmailer_headers.log');
             $sent = $mail->send();
             if (!$sent) {
-                error_log('PHPMailer: send() returned false for recipient ' . $to, 3, __DIR__ . '/phpmailer_errors.log');
+                error_log('PHPMailer: send() returned false for recipient ' . $to, 3, __DIR__ . '/../log/phpmailer_errors.log');
             }
             return (bool)$sent;
         } catch (Exception $e) {
-            error_log('PHPMailer Exception: ' . $e->getMessage(), 3, __DIR__ . '/phpmailer_errors.log');
+            error_log('PHPMailer Exception: ' . $e->getMessage(), 3, __DIR__ . '/../log/phpmailer_errors.log');
             // Fallthrough to fallback mail()
         }
     }
@@ -198,7 +198,7 @@ function send_email($to, $subject, $body, $is_html = true) {
     $headers .= ($is_html ? "Content-type: text/html; charset=utf-8\r\n" : "Content-type: text/plain; charset=utf-8\r\n");
 
     $res = mail($to, $subject, $body, $headers);
-    if (!$res) error_log("mail() failed sending to {$to}; headers: {$headers}", 3, __DIR__ . '/phpmailer_errors.log');
+    if (!$res) error_log("mail() failed sending to {$to}; headers: {$headers}", 3, __DIR__ . '/../log/phpmailer_errors.log');
     return $res;
 }
 

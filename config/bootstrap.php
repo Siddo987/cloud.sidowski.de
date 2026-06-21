@@ -25,6 +25,7 @@ if (file_exists($envFile)) {
 require_once __DIR__ . '/config.php';
 
 // Fehler-Reporting basierend auf DEBUG_MODE steuern
+ini_set('error_log', __DIR__ . '/../log/php_errors.log');
 if (defined('DEBUG_MODE') && DEBUG_MODE) {
     ini_set('display_errors', 1);
     ini_set('display_startup_errors', 1);
