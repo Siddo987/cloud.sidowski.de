@@ -10,7 +10,13 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libzip-dev \
     perl \
+    cron \
     && rm -rf /var/lib/apt/lists/*
+
+# Add cron job for cleanup script
+RUN echo "0 3 * * * root php /var/www/html/scripts/cleanup_orphans.php >> /var/log/cron.log 2>&1" > /etc/cron.d/cleanup_cron && \
+    chmod 0644 /etc/cron.d/cleanup_cron && \
+    crontab /etc/cron.d/cleanup_cron
 
 # Install PHP extensions
 RUN docker-php-ext-install mysqli gd zip

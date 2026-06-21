@@ -7,6 +7,10 @@ set -e
 echo "Applying database migrations..."
 php scripts/apply_migrations.php
 
+# Start cron in background
+echo "Starting cron daemon..."
+cron
+
 # Start Apache in foreground
 echo "Starting Apache..."
 exec apache2-foreground
