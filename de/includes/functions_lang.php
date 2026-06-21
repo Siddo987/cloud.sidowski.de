@@ -49,7 +49,7 @@ const LANG_STRINGS_DE = [
     'text_confirm_delete_file' => 'Sind Sie sicher, dass Sie die Datei \'%s\' unwiderruflich löschen möchten?',
     'text_confirm_delete_user' => 'Sind Sie sicher, dass Sie den Benutzer \'%s\' unwiderruflich löschen möchten?',
     'text_drop_zone' => 'Dateien hierher ziehen oder klicken', 'text_no_files_selected' => 'Keine Dateien ausgewählt.',
-    'text_max_file_size' => 'Max. Größe pro Datei: %s', 'text_no_account' => 'Noch kein Konto?',
+    'text_max_file_size' => 'Max. Größe pro Datei: %s', 'text_unlimited' => 'unbegrenzt', 'text_no_account' => 'Noch kein Konto?',
     'text_already_have_account' => 'Bereits ein Konto?', 'text_login_now' => 'Jetzt anmelden',
     'preview_not_available' => 'Vorschau für diesen Dateityp nicht verfügbar.',
     'preview_not_supported_type' => 'Vorschau für Dateityp "%s" nicht direkt unterstützt.',

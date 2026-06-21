@@ -125,6 +125,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['files'])) {
                 }
                 
                 if (move_uploaded_file($file_tmp, $target_file_path)) {
+                    // Metadaten entfernen, falls gewünscht
+                    if (isset($_POST['stripMetadata']) && $_POST['stripMetadata'] == '1') {
+                        $is_windows = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+                        $exiftool_exe = $is_windows ? 'exiftool.exe' : 'exiftool';
+                        $exiftool_path = realpath(__DIR__ . '/../vendor/exiftool/' . $exiftool_exe);
+                        if ($exiftool_path && file_exists($exiftool_path)) {
+                            // -all= entfernt alle Metadaten
+                            // -overwrite_original verhindert die Erstellung einer Backup-Datei
+                            $cmd = escapeshellarg($exiftool_path) . " -all= -overwrite_original " . escapeshellarg($target_file_path);
+                            exec($cmd, $output, $return_var);
+                            if ($return_var !== 0) {
+                                error_log("ExifTool failed on file: $filename with error code $return_var. Output: " . implode("\n", $output));
+                            }
+                        } else {
+                            error_log("ExifTool not found at: " . __DIR__ . '/../vendor/exiftool/' . $exiftool_exe);
+                        }
+                    }
+
                     // Physischen Pfad in DB speichern
                     $upd_stmt = $conn->prepare("UPDATE files SET physical_path = ? WHERE id = ?");
                     if ($upd_stmt) {
@@ -211,7 +229,7 @@ if (isset($_SESSION['upload_errors_details']) && is_array($_SESSION['upload_erro
             <p><?php echo lang('text_drop_zone'); ?></p>
             <?php // Input ist versteckt, wird per JS getriggert ?>
             <input type="file" id="file-input" name="files[]" multiple style="display: none;" />
-            <small><?php echo sprintf(lang('text_max_file_size'), format_bytes($max_file_size)); ?></small>
+            <small><?php echo sprintf(lang('text_max_file_size'), $unlimited_upload ? lang('text_unlimited') : format_bytes($max_file_size)); ?></small>
         </div>
 
         
