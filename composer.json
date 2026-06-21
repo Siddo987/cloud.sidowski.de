@@ -1,6 +1,20 @@
 {
     "require": {
+        "php": "^8.1",
+        "ext-mysqli": "*",
+        "ext-mbstring": "*",
+        "ext-json": "*",
+        "ext-openssl": "*",
+        "ext-gd": "*",
         "phpmailer/phpmailer": "^7.0",
-        "web-auth/webauthn-lib": "^4.8"
+        "web-auth/webauthn-lib": "^5.2"
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "php bin/install_exiftool.php"
+        ],
+        "post-update-cmd": [
+            "php bin/install_exiftool.php"
+        ]
     }
 }
