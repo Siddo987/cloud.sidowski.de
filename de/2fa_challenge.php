@@ -77,6 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $u['username'];
                 $_SESSION['role'] = $u['role'];
                 $_SESSION['session_version'] = isset($u['session_version']) ? (int)$u['session_version'] : 0;
+                
+                $conn->query("UPDATE users SET last_login = NOW() WHERE id = " . (int)$user_id);
                 // Remove 2FA pending
                 unset($_SESSION['2fa_pending'], $_SESSION['2fa_user_id'], $_SESSION['2fa_method'], $_SESSION['2fa_created']);
                 set_flash_message('success_2fa_verified','success');
@@ -104,6 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $u['username'];
                 $_SESSION['role'] = $u['role'];
                 $_SESSION['session_version'] = isset($u['session_version']) ? (int)$u['session_version'] : 0;
+                
+                $conn->query("UPDATE users SET last_login = NOW() WHERE id = " . (int)$user_id);
                 unset($_SESSION['2fa_pending'], $_SESSION['2fa_user_id'], $_SESSION['2fa_method'], $_SESSION['2fa_created']);
                 set_flash_message('success_2fa_verified','success');
                 redirect($current_language . '/dashboard');
@@ -124,6 +128,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['username'] = $u2['username'];
                     $_SESSION['role'] = $u2['role'];
                     $_SESSION['session_version'] = isset($u2['session_version']) ? (int)$u2['session_version'] : 0;
+                    
+                    $conn->query("UPDATE users SET last_login = NOW() WHERE id = " . (int)$user_id);
                     unset($_SESSION['2fa_pending'], $_SESSION['2fa_user_id'], $_SESSION['2fa_method'], $_SESSION['2fa_created']);
                     set_flash_message('success_2fa_verified','success');
                     redirect($current_language . '/dashboard');

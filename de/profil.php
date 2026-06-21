@@ -513,6 +513,39 @@ function handle_post_action($conn, $current_user_id, &$enabled_2fa, &$method_2fa
             }
             break;
 
+        case 'delete_account':
+            $current_password = isset($_POST['current_password']) ? $_POST['current_password'] : '';
+
+            // Verify password
+            $stmt = $conn->prepare("SELECT password, role FROM users WHERE id = ? LIMIT 1");
+            $stmt->bind_param('i', $current_user_id);
+            $stmt->execute();
+            $u = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if (!$u || !password_verify($current_password, $u['password'])) {
+                set_flash_message('error_wrong_password', 'error');
+                return;
+            }
+
+            // Prevent owner from deleting their own account via UI (safety measure)
+            if ($u['role'] === 'owner') {
+                set_flash_message('error_cannot_delete_owner', 'error');
+                return;
+            }
+
+            // Soft-delete account (90 days recovery)
+            $update_stmt = $conn->prepare("UPDATE users SET deleted = 1, deleted_at = NOW(), deletion_recovery_until = DATE_ADD(NOW(), INTERVAL 90 DAY), session_version = session_version + 1 WHERE id = ?");
+            $update_stmt->bind_param('i', $current_user_id);
+            if ($update_stmt->execute()) {
+                session_destroy();
+                redirect($current_language . '/login');
+            } else {
+                set_flash_message('error_db_update: ' . $update_stmt->error, 'error');
+            }
+            $update_stmt->close();
+            break;
+
         default:
             set_flash_message('error_invalid_action', 'error');
     }
@@ -616,6 +649,14 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
             </div>
         </div>
+
+        <div class="section danger-zone" style="border: 1px solid #ff4d4f; padding: 15px; border-radius: 8px; margin-top: 20px;">
+            <h2 style="color: #ff4d4f;">Gefahrenzone</h2>
+            <p>Wenn du deinen Account löschst, wird dieser für 90 Tage deaktiviert. In dieser Zeit kannst du den Support kontaktieren, um ihn wiederherzustellen. Nach 90 Tagen werden alle deine Daten unwiderruflich gelöscht.</p>
+            <div class="actions">
+                <button class="button button-danger" data-modal="delete-account">Account löschen</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -697,7 +738,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php if (!empty($user_data['email']) && $user_data['email_verified']): ?>
                             <button class="twofa-button twofa-button-primary" data-action="setup_email" style="margin-left:8px;" <?php if ($enabled_2fa && $method_2fa === 'email'): ?>disabled<?php endif; ?>>E-Mail-2FA einrichten</button>
                         <?php endif; ?>
-                        <button class="twofa-button twofa-button-primary" data-action="backup" style="margin-left:8px;" <?php if (!$enabled_2fa): ?>disabled<?php endif; ?>>Backup Codes generieren</button>
+                        <button class="twofa-button twofa-button-primary" data-action="backup" style="margin-left:8px;">Backup Codes generieren</button>
                         <button class="twofa-button twofa-button-danger" data-action="disable" <?php if (!$enabled_2fa): ?>disabled<?php endif; ?>>2FA deaktivieren</button>
                     </div>
                     <div id="action-setup_totp" class="action-content" style="display:none;">
@@ -752,7 +793,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <div id="action-backup" class="action-content" style="display:none;">
                         <h3>Backup-Codes</h3>
-                        <p>Backup-Codes helfen dir, wenn du keinen Zugriff mehr auf deine primäre 2FA-Methode hast. Du kannst sie neu generieren und herunterladen. Beim Regenerieren werden die alten Codes ungültig.</p>
+                        <p>Backup-Codes helfen dir, wenn du keinen Zugriff mehr auf deine primäre 2FA-Methode hast oder dein Passwort vergessen hast. Du kannst sie neu generieren und herunterladen. Beim Regenerieren werden die alten Codes ungültig.</p>
                         <form method="post" action="profil">
                             <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                             <input type="hidden" name="action" value="backup_2fa">
@@ -794,6 +835,21 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="text" id="webauthn-name" class="input" placeholder="Name (z.B. Mein YubiKey, Handy)" style="width: 100%; padding: 8px;">
         </div>
         <button id="add-webauthn" class="button">Neuen Sicherheitsschlüssel hinzufügen</button>
+    </div>
+</div>
+
+<div class="modal" id="modal-delete-account">
+    <div class="modal-content" style="border: 2px solid #ff4d4f;">
+        <button class="modal-close">&times;</button>
+        <h2 style="color: #ff4d4f;">Account löschen</h2>
+        <p>Bist du sicher, dass du deinen Account löschen möchtest? Dies kann nicht direkt rückgängig gemacht werden!</p>
+        <form method="post" action="profil">
+            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+            <input type="hidden" name="action" value="delete_account">
+            <label>Aktuelles Passwort zur Bestätigung:</label>
+            <input type="password" name="current_password" required>
+            <button type="submit" class="button button-danger" style="margin-top: 15px;">Ja, meinen Account löschen</button>
+        </form>
     </div>
 </div>
 
@@ -1170,6 +1226,7 @@ function setupWebAuthnListener() {
             const verifyData = await verifyResponse.json();
             if (verifyResponse.ok && verifyData.success) {
                 if (nameInput) nameInput.value = ''; // clear input
+                localStorage.setItem('passkey_device_registered', '1');
                 showAjaxFlash('Sicherheitsschlüssel erfolgreich hinzugefügt!', 'success');
                 loadWebAuthnCredentials();
             } else {

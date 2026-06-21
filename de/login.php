@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $is_email = filter_var($username, FILTER_VALIDATE_EMAIL);
         $column = $is_email ? 'email' : 'username';
-        $stmt = $conn->prepare("SELECT id, username, password, role, session_version, deleted, email, two_factor_enabled, two_factor_method FROM users WHERE {$column} = ?");
+        $stmt = $conn->prepare("SELECT id, username, password, role, session_version, deleted, email, two_factor_enabled, two_factor_method, is_active FROM users WHERE {$column} = ?");
         if ($stmt) {
             $stmt->bind_param("s", $username);
             $stmt->execute();
@@ -30,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($user && $user['deleted']) {
                 $error_message = lang('error_user_not_found');
+            } elseif ($user && isset($user['is_active']) && $user['is_active'] == 0) {
+                $error_message = lang('error_account_locked') ?: 'Account gesperrt.';
             } elseif ($user && password_verify($password, $user['password'])) {
                 // 2FA prüfen: nur aktiv wenn two_factor_enabled und die gewählte Methode unterstützt wird
                 $user_two_factor_enabled = !empty($user['two_factor_enabled']);
@@ -79,6 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'];
                 $_SESSION['session_version'] = isset($user['session_version']) ? (int)$user['session_version'] : 0;
+                
+                $conn->query("UPDATE users SET last_login = NOW() WHERE id = " . (int)$user['id']);
                 
                 if ($is_ajax) {
                     $path = ltrim($current_language . '/dashboard', '/');
@@ -188,8 +192,65 @@ let webauthnChallengeData = null;
 let conditionalWebAuthnAbortController = null;
 
 if (window.PublicKeyCredential) {
-    // Starte sofort die WebAuthn-Abfrage beim Laden der Seite
-    startAggressivePasskeyLogin();
+    if (localStorage.getItem('passkey_device_registered') === '1') {
+        // Starte aggressiv, wenn wir wissen, dass ein Passkey auf diesem Gerät registriert wurde
+        startAggressivePasskeyLogin();
+    } else {
+        // Starte unauffällig (Conditional UI), wenn wir es nicht sicher wissen
+        startConditionalWebAuthn();
+    }
+}
+
+async function startConditionalWebAuthn() {
+    if (PublicKeyCredential.isConditionalMediationAvailable) {
+        const isCMA = await PublicKeyCredential.isConditionalMediationAvailable();
+        if (isCMA) {
+            try {
+                const challengeResponse = await fetch('actions/webauthn_challenge', { method: 'POST', body: JSON.stringify({username: ''}) });
+                if (!challengeResponse.ok) return;
+                const challengeData = await challengeResponse.json();
+                
+                conditionalWebAuthnAbortController = new AbortController();
+                const assertion = await navigator.credentials.get({
+                    signal: conditionalWebAuthnAbortController.signal,
+                    mediation: 'conditional',
+                    publicKey: {
+                        challenge: Uint8Array.from(atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
+                        rpId: challengeData.rpId,
+                        allowCredentials: [],
+                        userVerification: 'required'
+                    }
+                });
+                
+                // Verifiziere wie beim aggressiven Login
+                const verifyResponse = await fetch('actions/webauthn_verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: '',
+                        assertion: {
+                            id: assertion.id,
+                            rawId: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId))),
+                            response: {
+                                authenticatorData: btoa(String.fromCharCode(...new Uint8Array(assertion.response.authenticatorData))),
+                                clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(assertion.response.clientDataJSON))),
+                                signature: btoa(String.fromCharCode(...new Uint8Array(assertion.response.signature))),
+                                userHandle: assertion.response.userHandle ? btoa(String.fromCharCode(...new Uint8Array(assertion.response.userHandle))) : null
+                            },
+                            type: assertion.type
+                        }
+                    })
+                });
+
+                const verifyData = await verifyResponse.json();
+                if (verifyResponse.ok && verifyData.success) {
+                    window.location.href = 'dashboard';
+                }
+            } catch (e) {
+                // Ignore errors for conditional UI
+            }
+        }
+    }
 }
 
 async function startAggressivePasskeyLogin() {
@@ -201,6 +262,7 @@ async function startAggressivePasskeyLogin() {
         const assertion = await navigator.credentials.get({
             publicKey: {
                 challenge: Uint8Array.from(atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
+                rpId: challengeData.rpId,
                 allowCredentials: [],
                 userVerification: 'required'
             }
@@ -299,6 +361,7 @@ async function performWebAuthnLogin(username, challengeData) {
         const assertion = await navigator.credentials.get({
             publicKey: {
                 challenge: Uint8Array.from(atob(challengeData.challenge.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
+                rpId: challengeData.rpId,
                 allowCredentials: challengeData.allowCredentials.map(cred => ({
                     id: Uint8Array.from(atob(cred.id.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
                     type: cred.type
