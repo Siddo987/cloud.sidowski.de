@@ -383,7 +383,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                      <td><?php echo lang('role_' . $user_role_lower) ?: htmlspecialchars(ucfirst($user['role'])); ?></td>
                      <td class="actions-cell">
                          <?php if ($can_edit_user): ?>
-                             <a href="edit_user.php?id=<?php echo $user['id']; ?>" class="action-button" title="<?php echo lang('button_edit'); ?>">✏️</a>
+                             <a href="user_info.php?id=<?php echo $user['id']; ?>" class="action-button" title="<?php echo lang('button_info'); ?>">🔍</a>
                          <?php endif; ?>
                          <?php if ($can_delete_user): ?>
                              <form method="post" action="all_users?search=<?php echo urlencode($search_term); ?>" class="ajax-action" style="display:inline; margin:0;" onsubmit="return confirm('<?php printf(lang('text_confirm_delete_user'), htmlspecialchars(addslashes($user['username']))); ?>');">

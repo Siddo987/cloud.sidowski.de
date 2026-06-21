@@ -1,5 +1,5 @@
 <?php
-// /de/edit_user.php
+// /de/user_info.php
 
 $current_language = 'de';
 require_once __DIR__ . '/../config/bootstrap.php';
@@ -38,11 +38,13 @@ if (!$user_id) {
     redirect($current_language . '/all_users');
 }
 
-// lade Benutzer (nur unlimited_upload einbeziehen, falls die Spalte existiert)
-$select_fields = "id, username, email, role, session_version";
+// lade Benutzer
+$select_fields = "id, username, email, role, session_version, created_at, last_login, is_active, deleted, deleted_at, deletion_recovery_until, two_factor_enabled, two_factor_method";
 $col_check = $conn->query("SHOW COLUMNS FROM users LIKE 'unlimited_upload'");
+$has_unlimited_column = false;
 if ($col_check && $col_check->num_rows > 0) {
     $select_fields .= ", unlimited_upload";
+    $has_unlimited_column = true;
 }
 $stmt = $conn->prepare("SELECT $select_fields FROM users WHERE id = ? LIMIT 1");
 $stmt->bind_param('i', $user_id);
@@ -50,7 +52,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 $user = $result ? $result->fetch_assoc() : null;
 $stmt->close();
-// stelle sicher, dass der Schlüssel definiert ist
+
 if ($user && !array_key_exists('unlimited_upload', $user)) {
     $user['unlimited_upload'] = 0;
 }
@@ -60,16 +62,8 @@ if (!$user) {
     redirect($current_language . '/all_users');
 }
 
-
 $current_role_lower = strtolower($current_user_role);
 $target_role_lower  = strtolower($user['role']);
-
-// prüfen, ob die Tabelle die Option unlimited_upload enthält
-$has_unlimited_column = false;
-$col_check2 = $conn->query("SHOW COLUMNS FROM users LIKE 'unlimited_upload'");
-if ($col_check2 && $col_check2->num_rows > 0) {
-    $has_unlimited_column = true;
-}
 
 // zugriffsberechtigung: man muss eine höhere Rolle als das Ziel haben
 if (!has_higher_role($current_role_lower, $target_role_lower)) {
@@ -81,7 +75,7 @@ if (!has_higher_role($current_role_lower, $target_role_lower)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf_token();
 
-    // während der POST-Anfrage können wir ggf. aktualisierte Daten zurückschreiben
+    // 1. save_user
     if (isset($_POST['save_user'])) {
         $new_username = isset($_POST['username']) ? trim($_POST['username']) : '';
         $new_email    = isset($_POST['email']) ? trim($_POST['email']) : '';
@@ -98,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!has_higher_role($current_role_lower, strtolower($new_role))) {
             set_flash_message('error_no_permission', 'error');
         } else {
-            // untersuche Duplikate für username/email
+            // check duplicates
             $check_stmt = $conn->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
             $check_stmt->bind_param('si', $new_username, $user_id);
             $check_stmt->execute();
@@ -116,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $check_stmt->close();
                     } else {
                         $check_stmt->close();
-                        // führe Update durch
                         if ($has_unlimited_column) {
                             $update_stmt = $conn->prepare("UPDATE users SET username = ?, email = ?, role = ?, unlimited_upload = ? WHERE id = ?");
                             $update_stmt->bind_param('sssii', $new_username, $new_email, $new_role, $new_unlimited, $user_id);
@@ -125,8 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $update_stmt->bind_param('sssi', $new_username, $new_email, $new_role, $user_id);
                         }
                         if ($update_stmt->execute()) {
-                            set_flash_message('success_role_changed', 'success'); // generische Nachricht
-                            // neu laden für Anzeige
+                            set_flash_message('success_role_changed', 'success');
                             $user['username'] = $new_username;
                             $user['email'] = $new_email;
                             $user['role'] = $new_role;
@@ -137,7 +129,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $update_stmt->close();
                     }
                 } else {
-                    // leere Email erlaubt
                     if ($has_unlimited_column) {
                         $update_stmt = $conn->prepare("UPDATE users SET username = ?, email = NULL, role = ?, unlimited_upload = ? WHERE id = ?");
                         $update_stmt->bind_param('ssii', $new_username, $new_role, $new_unlimited, $user_id);
@@ -160,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // 2. set_password
     if (isset($_POST['set_password'])) {
         $new_pass = isset($_POST['new_password']) ? $_POST['new_password'] : '';
         $confirm = isset($_POST['confirm_password']) ? $_POST['confirm_password'] : '';
@@ -173,7 +165,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pw_stmt->bind_param('si', $hash, $user_id);
             if ($pw_stmt->execute()) {
                 set_flash_message('success_password_changed', 'success');
-                // evtl. E-Mail schicken
                 if (!empty($user['email'])) {
                     $subject = 'Passwort zurückgesetzt';
                     $body = '<p>Dein Passwort wurde von einem Administrator zurückgesetzt.</p>';
@@ -186,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Temporäres Passwort per E-Mail auslösen
+    // 3. send_reset
     if (isset($_POST['send_reset'])) {
         if (empty($user['email']) || !filter_var($user['email'], FILTER_VALIDATE_EMAIL)) {
             set_flash_message('error_no_email', 'error');
@@ -210,44 +201,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // 2FA deaktivieren
+    // 4. disable_2fa
     if (isset($_POST['disable_2fa'])) {
         $fa_stmt = $conn->prepare("UPDATE users SET two_factor_enabled = 0, two_factor_method = NULL, two_factor_secret = NULL, two_factor_backup_codes = NULL WHERE id = ?");
         $fa_stmt->bind_param('i', $user_id);
         if ($fa_stmt->execute()) {
             set_flash_message('success_2fa_disabled', 'success');
-            // Neu laden des Benutzers
-            $reload_stmt = $conn->prepare("SELECT $select_fields FROM users WHERE id = ? LIMIT 1");
-            $reload_stmt->bind_param('i', $user_id);
-            $reload_stmt->execute();
-            $reload_result = $reload_stmt->get_result();
-            $user = $reload_result ? $reload_result->fetch_assoc() : null;
-            if ($user && !array_key_exists('unlimited_upload', $user)) {
-                $user['unlimited_upload'] = 0;
-            }
-            $reload_stmt->close();
+            $user['two_factor_enabled'] = 0;
+            $user['two_factor_method'] = null;
         } else {
             set_flash_message('error_db_update', 'error');
         }
         $fa_stmt->close();
     }
 
-    // Impersonation (als Benutzer anmelden)
+    // 5. force_logout
+    if (isset($_POST['force_logout'])) {
+        $fl_stmt = $conn->prepare("UPDATE users SET session_version = session_version + 1 WHERE id = ?");
+        $fl_stmt->bind_param('i', $user_id);
+        if ($fl_stmt->execute()) {
+            set_flash_message('Sitzungen erfolgreich beendet.', 'success');
+        } else {
+            set_flash_message('error_db_update', 'error');
+        }
+        $fl_stmt->close();
+    }
+
+    // 6. toggle_active
+    if (isset($_POST['toggle_active'])) {
+        $new_active = $user['is_active'] ? 0 : 1;
+        // Increase session_version when locking
+        $sess_sql = $new_active == 0 ? ", session_version = session_version + 1" : "";
+        $ta_stmt = $conn->prepare("UPDATE users SET is_active = ?$sess_sql WHERE id = ?");
+        $ta_stmt->bind_param('ii', $new_active, $user_id);
+        if ($ta_stmt->execute()) {
+            set_flash_message($new_active ? 'Account entsperrt.' : 'Account gesperrt.', 'success');
+            $user['is_active'] = $new_active;
+        } else {
+            set_flash_message('error_db_update', 'error');
+        }
+        $ta_stmt->close();
+    }
+
+    // 7. restore_user
+    if (isset($_POST['restore_user'])) {
+        $ru_stmt = $conn->prepare("UPDATE users SET deleted = 0, deleted_at = NULL, deletion_recovery_until = NULL WHERE id = ?");
+        $ru_stmt->bind_param('i', $user_id);
+        if ($ru_stmt->execute()) {
+            set_flash_message('Account wiederhergestellt.', 'success');
+            $user['deleted'] = 0;
+            $user['deleted_at'] = null;
+            $user['deletion_recovery_until'] = null;
+        } else {
+            set_flash_message('error_db_update', 'error');
+        }
+        $ru_stmt->close();
+    }
+
+    // 8. delete_webauthn
+    if (isset($_POST['delete_webauthn'])) {
+        $cred_id = filter_input(INPUT_POST, 'credential_id', FILTER_VALIDATE_INT);
+        if ($cred_id) {
+            $dw_stmt = $conn->prepare("DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?");
+            $dw_stmt->bind_param('ii', $cred_id, $user_id);
+            if ($dw_stmt->execute()) {
+                set_flash_message('Security Key entfernt.', 'success');
+            } else {
+                set_flash_message('error_db_delete', 'error');
+            }
+            $dw_stmt->close();
+        }
+    }
+
+    // 9. impersonate_user
     if (isset($_POST['impersonate_user'])) {
-        // Sicherheit: nur Owner/Admin dürfen dies tun
         if ($current_role_lower !== 'owner' && $current_role_lower !== 'admin') {
             set_flash_message('error_no_permission', 'error');
         } else {
-            // Erstelle Session für Impersonation
             $_SESSION['user_id'] = $user_id;
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['session_version'] = $user['session_version'];
             $_SESSION['_impersonated_by_admin_id'] = $current_user_id;
             $_SESSION['_impersonation_start'] = time();
-            $_SESSION['_impersonation_timeout'] = time() + (30 * 60); // 30 Minuten
+            $_SESSION['_impersonation_timeout'] = time() + (30 * 60);
             
-            // Log für Audit-Trail
             error_log("IMPERSONATION: Admin/Owner {$current_user_id} ({$current_user_role}) hat sich als Benutzer {$user_id} ({$user['username']}) angemeldet.");
             
             set_flash_message('success_impersonation_started', 'success');
@@ -256,14 +294,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Fetch stats
+$stats_stmt = $conn->prepare("SELECT COUNT(id) as file_count, SUM(size) as total_size FROM files WHERE uploader_id = ? AND deleted = 0");
+$stats_stmt->bind_param('i', $user_id);
+$stats_stmt->execute();
+$stats_result = $stats_stmt->get_result();
+$stats = $stats_result ? $stats_result->fetch_assoc() : ['file_count' => 0, 'total_size' => 0];
+$stats_stmt->close();
+
+function format_size($bytes) {
+    if (!$bytes) return '0 B';
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $i = floor(log($bytes, 1024));
+    return round($bytes / pow(1024, $i), 2) . ' ' . $units[$i];
+}
+
+// Fetch webauthn credentials
+$webauthn_keys = [];
+$wa_stmt = $conn->prepare("SELECT id, name, created_at, last_used FROM webauthn_credentials WHERE user_id = ?");
+$wa_stmt->bind_param('i', $user_id);
+$wa_stmt->execute();
+$wa_result = $wa_stmt->get_result();
+if ($wa_result) {
+    while ($row = $wa_result->fetch_assoc()) {
+        $webauthn_keys[] = $row;
+    }
+}
+$wa_stmt->close();
+
 // Seite ausgeben
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<h1><?php echo lang('title_edit_user'); ?></h1>
+<h1>Benutzer-Info: <?php echo htmlspecialchars($user['username']); ?></h1>
 
+<!-- Allgemein & Statistiken -->
 <div class="card">
-    <form method="post" action="edit_user">
+    <h2>Übersicht & Statistik</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+        <div style="flex: 1; min-width: 250px;">
+            <p><strong>ID:</strong> <?php echo $user['id']; ?></p>
+            <p><strong>Registriert am:</strong> <?php echo $user['created_at']; ?></p>
+            <p><strong>Letzter Login:</strong> <?php echo $user['last_login'] ? $user['last_login'] : 'Nie'; ?></p>
+        </div>
+        <div style="flex: 1; min-width: 250px;">
+            <p><strong>Hochgeladene Dateien:</strong> <?php echo number_format((float)$stats['file_count']); ?></p>
+            <p><strong>Speicherplatz belegt:</strong> <?php echo format_size($stats['total_size']); ?></p>
+        </div>
+    </div>
+</div>
+
+<!-- Account Status -->
+<div class="card">
+    <h2>Account-Status</h2>
+    <div style="margin-bottom: 15px;">
+        <?php if ($user['deleted']): ?>
+            <p style="color: #ff4d4f;"><strong>Status: Gelöscht (Papierkorb)</strong></p>
+            <p>Dieser Account ist zur Löschung markiert.</p>
+            <p>Wiederherstellbar bis: <strong><?php echo $user['deletion_recovery_until']; ?></strong></p>
+            <form method="post" action="user_info">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+                <button type="submit" name="restore_user" class="button button-primary">Account sofort wiederherstellen</button>
+            </form>
+        <?php else: ?>
+            <p><strong>Status:</strong> <?php echo $user['is_active'] ? '<span style="color:green;">Aktiv</span>' : '<span style="color:red;">Gesperrt</span>'; ?></p>
+            <form method="post" action="user_info">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+                <button type="submit" name="toggle_active" class="button <?php echo $user['is_active'] ? 'button-danger' : 'button-primary'; ?>">
+                    <?php echo $user['is_active'] ? 'Account sperren' : 'Account entsperren'; ?>
+                </button>
+            </form>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Profil bearbeiten -->
+<div class="card">
+    <h2>Profil bearbeiten</h2>
+    <form method="post" action="user_info">
         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
         <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
 
@@ -277,7 +387,6 @@ require_once __DIR__ . '/../includes/header.php';
         <select name="role" id="role">
             <?php
             foreach ($role_hierarchy as $role_name => $lvl) {
-                // zeige nur Rollen die kleiner als aktuelle Benutzerrolle sind
                 if (!has_higher_role($current_role_lower, $role_name)) continue;
                 $sel = ($role_name === strtolower($user['role'])) ? 'selected' : '';
                 echo '<option value="' . htmlspecialchars($role_name) . '" ' . $sel . '>' . htmlspecialchars(lang('role_' . $role_name)) . '</option>';
@@ -293,37 +402,95 @@ require_once __DIR__ . '/../includes/header.php';
     </form>
 </div>
 
+<!-- Sicherheit & Zugriff -->
 <div class="card">
-    <h2><?php echo lang('button_change_password'); ?></h2>
-    <form method="post" action="edit_user">
-        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
-        <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
-        <label for="new_password"><?php echo lang('label_new_password'); ?></label>
-        <input type="password" name="new_password" id="new_password">
-        <label for="confirm_password"><?php echo lang('label_confirm_new_password'); ?></label>
-        <input type="password" name="confirm_password" id="confirm_password">
-        <button type="submit" name="set_password" class="button button-secondary"><?php echo lang('button_change_password'); ?></button>
-    </form>
+    <h2>Sicherheit & Zugriff</h2>
+    
+    <div style="margin-bottom: 20px;">
+        <h3>Sitzungen verwalten</h3>
+        <form method="post" action="user_info">
+            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+            <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+            <button type="submit" name="force_logout" class="button button-danger" onclick="return confirm('Soll dieser Benutzer auf allen Geräten ausgeloggt werden?');">Force Logout (Alle Sitzungen beenden)</button>
+        </form>
+    </div>
+    
     <hr>
-    <form method="post" action="edit_user" style="margin-top:10px;">
-        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
-        <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
-        <button type="submit" name="send_reset" class="button button-secondary"><?php echo lang('button_send_reset_code'); ?></button>
-    </form>
-</div>
+    
+    <div style="margin-bottom: 20px;">
+        <h3>Zwei-Faktor-Authentifizierung (2FA)</h3>
+        <p>Status: <strong><?php echo $user['two_factor_enabled'] ? 'Aktiviert (' . htmlspecialchars($user['two_factor_method']) . ')' : 'Deaktiviert'; ?></strong></p>
+        <?php if ($user['two_factor_enabled']): ?>
+            <form method="post" action="user_info">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+                <button type="submit" name="disable_2fa" class="button button-danger" onclick="return confirm('2FA wirklich deaktivieren?');"><?php echo lang('button_disable_2fa'); ?></button>
+            </form>
+        <?php endif; ?>
+    </div>
+    
+    <hr>
+    
+    <div style="margin-bottom: 20px;">
+        <h3>WebAuthn (Passkeys / Security Keys)</h3>
+        <?php if (empty($webauthn_keys)): ?>
+            <p>Keine Schlüssel registriert.</p>
+        <?php else: ?>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #ddd; text-align: left;">
+                        <th style="padding: 8px;">Name</th>
+                        <th style="padding: 8px;">Hinzugefügt am</th>
+                        <th style="padding: 8px;">Letzte Nutzung</th>
+                        <th style="padding: 8px;">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($webauthn_keys as $key): ?>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px;"><?php echo htmlspecialchars($key['name']); ?></td>
+                        <td style="padding: 8px;"><?php echo $key['created_at']; ?></td>
+                        <td style="padding: 8px;"><?php echo $key['last_used'] ? $key['last_used'] : 'Nie'; ?></td>
+                        <td style="padding: 8px;">
+                            <form method="post" action="user_info" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+                                <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+                                <input type="hidden" name="credential_id" value="<?php echo $key['id']; ?>">
+                                <button type="submit" name="delete_webauthn" class="action-button delete-button" onclick="return confirm('Sicherheitsschlüssel wirklich löschen?');" style="background: none; border: none; font-size: 1.2em; cursor: pointer;" title="Löschen">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+    
+    <hr>
 
-<div class="card">
-    <h2>Sicherheit</h2>
-    <form method="post" action="edit_user">
-        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
-        <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
-        <button type="submit" name="disable_2fa" class="button button-danger" onclick="return confirm('2FA f\u00fcr diesen Benutzer wirklich deaktivieren?');"><?php echo lang('button_disable_2fa'); ?></button>
-    </form>
+    <div style="margin-bottom: 20px;">
+        <h3><?php echo lang('button_change_password'); ?></h3>
+        <form method="post" action="user_info">
+            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+            <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+            <label for="new_password"><?php echo lang('label_new_password'); ?></label>
+            <input type="password" name="new_password" id="new_password">
+            <label for="confirm_password"><?php echo lang('label_confirm_new_password'); ?></label>
+            <input type="password" name="confirm_password" id="confirm_password">
+            <button type="submit" name="set_password" class="button button-secondary"><?php echo lang('button_change_password'); ?></button>
+        </form>
+        <br>
+        <form method="post" action="user_info">
+            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
+            <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
+            <button type="submit" name="send_reset" class="button button-secondary"><?php echo lang('button_send_reset_code'); ?></button>
+        </form>
+    </div>
 </div>
 
 <div class="card">
     <h2>Support & Diagnosis</h2>
-    <form method="post" action="edit_user">
+    <form method="post" action="user_info">
         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
         <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
         <button type="submit" name="impersonate_user" class="button button-warning" onclick="return confirm('Als <?php echo htmlspecialchars($user['username']); ?> anmelden? (30 Min. Timeout)');"><?php echo lang('button_impersonate_user'); ?></button>
