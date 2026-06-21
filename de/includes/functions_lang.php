@@ -10,10 +10,13 @@ const LANG_STRINGS_DE = [
     'title_my_files' => 'Meine Dateien', 'title_public_files' => 'Öffentliche Dateien', 'title_all_files' => 'Alle Dateien (Admin)',
     'title_all_users' => 'Benutzerverwaltung', 'title_edit_user' => 'Benutzer bearbeiten', 'title_file_view' => 'Dateiansicht', 'title_profile' => 'Mein Profil', // ERGÄNZT
     'title_error' => 'Fehler', 'title_imprint' => 'Impressum', 'title_privacy' => 'Datenschutzerklärung',
+    'title_tickets' => 'Meine Tickets', 'title_admin_tickets' => 'Ticketverwaltung', 'title_ticket_view' => 'Ticket ansehen',
     'nav_files' => 'Dateien', // NEU
     'nav_settings' => 'Einstellungen', // NEU (im Code nicht verwendet, könnte für Profil-Dropdown genutzt werden)
     'nav_profile' => 'Profil', // NEU
     'nav_admin' => 'Verwaltung', // NEU (für Admin-Dropdown)
+    'nav_tickets' => 'Support / Tickets',
+    'nav_admin_tickets' => 'Alle Tickets',
 
     // Buttons
     'button_upload' => 'Hochladen', 'button_login' => 'Anmelden', 'button_register' => 'Registrieren', 'button_logout' => 'Abmelden',
@@ -22,6 +25,7 @@ const LANG_STRINGS_DE = [
     'button_make_private' => 'Privat machen', 'button_delete' => 'Löschen', 'button_download' => 'Herunterladen',
     'button_view' => 'Ansehen', 'button_submit' => 'Absenden', 'button_back_dashboard' => 'Zurück zum Dashboard',
     'button_send_reset_code' => 'Reset-Code senden',
+    'button_create_ticket' => 'Neues Ticket', 'button_reply' => 'Antworten', 'button_close_ticket' => 'Ticket schließen', 'button_back_tickets' => 'Zurück zu Tickets',
     'button_disable_2fa' => '2FA deaktivieren',
     'button_impersonate_user' => 'Als Benutzer anmelden',
     'button_upload_selected' => 'Ausgewählte hochladen',
@@ -38,9 +42,11 @@ const LANG_STRINGS_DE = [
     'th_filename' => 'Dateiname', 'th_upload_date' => 'Uploaddatum', 'th_uploader' => 'Uploader', 'th_status' => 'Status',
     'th_actions' => 'Aktionen', 'th_size' => 'Größe', 'th_user_id' => 'ID', 'th_username' => 'Benutzername', 'th_email' => 'E-Mail',
     'th_role' => 'Rolle',
+    'th_subject' => 'Betreff', 'th_ticket_id' => 'Ticket ID', 'th_last_update' => 'Letztes Update',
 
     // Status & Rollen
     'status_public' => 'Öffentlich', 'status_private' => 'Privat', 'role_user' => 'Benutzer', 'role_mod' => 'Moderator', 'role_admin' => 'Admin', 'role_owner' => 'Owner', 'role_root' => 'Root',
+    'status_open' => 'Offen', 'status_closed' => 'Geschlossen',
 
     // Nachrichten & Hinweise
     'text_no_files_found' => 'Keine Dateien gefunden.', 'text_no_files_found_search' => 'Keine Dateien für Ihre Suche gefunden.',
@@ -51,6 +57,8 @@ const LANG_STRINGS_DE = [
     'text_drop_zone' => 'Dateien hierher ziehen oder klicken', 'text_no_files_selected' => 'Keine Dateien ausgewählt.',
     'text_max_file_size' => 'Max. Größe pro Datei: %s', 'text_unlimited' => 'unbegrenzt', 'text_no_account' => 'Noch kein Konto?',
     'text_already_have_account' => 'Bereits ein Konto?', 'text_login_now' => 'Jetzt anmelden',
+    'text_no_tickets' => 'Keine Tickets gefunden.',
+    'label_ticket_subject' => 'Betreff:', 'label_ticket_message' => 'Nachricht:',
     'preview_not_available' => 'Vorschau für diesen Dateityp nicht verfügbar.',
     'preview_not_supported_type' => 'Vorschau für Dateityp "%s" nicht direkt unterstützt.',
     'info_already_private' => 'Datei ist bereits privat.',
@@ -77,7 +85,8 @@ const LANG_STRINGS_DE = [
     // Login/Register Fehlermeldungen
     'error_login_failed' => 'Anmeldung fehlgeschlagen: Benutzername oder Passwort falsch.', 'error_missing_credentials' => 'Bitte Benutzername und Passwort eingeben.',
     'error_passwords_dont_match' => 'Die Passwörter stimmen nicht überein.', 'error_password_too_short' => 'Das Passwort muss mindestens 8 Zeichen lang sein.',
-    'error_password_weak' => 'Das Passwort muss mindestens 8 Zeichen lang sein und Groß-, Kleinbuchstaben, Zahlen sowie Sonderzeichen enthalten.', 'error_username_taken' => 'Der Benutzername ist bereits vergeben.', 'error_registration_failed' => 'Registrierung fehlgeschlagen.',
+    'error_password_weak' => 'Das Passwort muss mindestens 8 Zeichen lang sein und Groß-, Kleinbuchstaben, Zahlen sowie Sonderzeichen enthalten.', 'error_username_invalid' => 'Benutzername darf nur Buchstaben, Zahlen, Bindestriche und Unterstriche enthalten.',
+    'error_no_permission_view_file' => 'Du hast keine Berechtigung, diese Datei anzusehen. Entweder ist sie privat, oder dir fehlt der Freigabe-Link.', 'error_username_taken' => 'Der Benutzername ist bereits vergeben.', 'error_registration_failed' => 'Registrierung fehlgeschlagen.',
     'error_no_email' => 'Keine E-Mail-Adresse zugewiesen.',
 
     // Upload Fehlermeldungen
@@ -108,6 +117,7 @@ const LANG_STRINGS_DE = [
     'success_status_changed' => 'Dateistatus erfolgreich geändert.', 'success_role_changed' => 'Benutzerrolle erfolgreich geändert.',
     'success_password_changed' => 'Passwort erfolgreich geändert.',
     'success_temp_code_sent' => 'Temporärer Code per E-Mail versandt.', 'success_username_changed' => 'Benutzername erfolgreich geändert.',
+    'success_ticket_created' => 'Ticket erfolgreich erstellt.', 'success_ticket_replied' => 'Antwort erfolgreich hinzugefügt.', 'success_ticket_closed' => 'Ticket erfolgreich geschlossen.',
     'success_impersonation_started' => 'Impersonation aktiviert (30 Minuten).',
     'success_impersonation_ended' => 'Impersonation beendet. Du bist wieder als Administrator angemeldet.',
     'success_password_reset' => 'Passwort erfolgreich zurückgesetzt.',

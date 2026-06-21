@@ -350,6 +350,45 @@ function format_bytes($bytes, $precision = 2) {
 
 
 /**
+ * Berechnet rekursiv die Größe eines Ordners (Dateien + Unterordner).
+ * @param mysqli $conn Datenbankverbindung.
+ * @param int $folder_id ID des Ordners.
+ * @param bool $include_deleted Sollen gelöschte Dateien eingeschlossen werden?
+ * @return int Gesamtgröße in Bytes.
+ */
+function get_folder_size($conn, $folder_id, $include_deleted = false) {
+    if (!$folder_id) return 0;
+    $total_size = 0;
+    
+    // Größe der Dateien in diesem Ordner
+    $deleted_clause = $include_deleted ? "" : " AND deleted = 0";
+    $stmt = $conn->prepare("SELECT SUM(size) as total FROM files WHERE folder_id = ?" . $deleted_clause);
+    if ($stmt) {
+        $stmt->bind_param("i", $folder_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($row = $res->fetch_assoc()) {
+            $total_size += (int)$row['total'];
+        }
+        $stmt->close();
+    }
+    
+    // Größe der Unterordner rekursiv
+    $stmt = $conn->prepare("SELECT id FROM folders WHERE parent_id = ?" . $deleted_clause);
+    if ($stmt) {
+        $stmt->bind_param("i", $folder_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $total_size += get_folder_size($conn, $row['id'], $include_deleted);
+        }
+        $stmt->close();
+    }
+    
+    return $total_size;
+}
+
+/**
  * Prüft, ob der aktuell angemeldete Benutzer Berechtigung hat, eine bestimmte Datei zu sehen/zu verwalten.
  * @param mysqli $conn Datenbankverbindung.
  * @param int $file_id ID der Datei.
@@ -359,12 +398,30 @@ function format_bytes($bytes, $precision = 2) {
  */
 function check_file_permission($conn, $file_id, $user_id, $role) {
     if ($file_id <= 0) return false;
-    $stmt = $conn->prepare("SELECT uploader_id, public FROM files WHERE id = ?");
-    if (!$stmt) { error_log(/*...*/); return false; }
+    $stmt = $conn->prepare("SELECT uploader_id, public, login_required FROM files WHERE id = ?");
+    if (!$stmt) { error_log("DB Error in check_file_permission: " . $conn->error); return false; }
     $stmt->bind_param("i", $file_id); $stmt->execute(); $result = $stmt->get_result(); $file = $result->fetch_assoc(); $stmt->close();
-    if (!$file) return false; if ($file['public']) return true; if ($user_id === null) return false;
+    
+    if (!$file) return false;
+    
     $role_lower = $role ? strtolower($role) : null;
-    return ($file['uploader_id'] == $user_id || in_array($role_lower, ['admin', 'owner']));
+    $is_owner = ($file['uploader_id'] == $user_id);
+    $is_admin = in_array($role_lower, ['admin', 'owner']);
+    
+    if ($is_owner || $is_admin) return true;
+    if (!$file['public']) return false;
+    if (!$file['login_required']) return true;
+    if ($user_id === null) return false;
+    
+    $stmt_access = $conn->prepare("SELECT user_id FROM file_access_users WHERE file_id = ?");
+    $stmt_access->bind_param("i", $file_id); $stmt_access->execute(); $res_access = $stmt_access->get_result();
+    
+    $restricted_users = [];
+    while ($row = $res_access->fetch_assoc()) { $restricted_users[] = $row['user_id']; }
+    $stmt_access->close();
+    
+    if (empty($restricted_users)) return true;
+    return in_array($user_id, $restricted_users);
 }
 
 /**

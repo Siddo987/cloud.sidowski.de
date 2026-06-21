@@ -1491,7 +1491,10 @@ html[data-theme="dark"] .auth-card p a {
 }
 
 .icon-delete::before {
-    content: "🗑️";
+  content: "🗑️";
+}
+.icon-share::before {
+  content: "🔗";
 }/* --- Premium Cookie Banner --- */
 .cookie-banner {
     position: fixed;

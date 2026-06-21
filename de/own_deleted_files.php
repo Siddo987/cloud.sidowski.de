@@ -219,15 +219,18 @@ $breadcrumb = build_trash_breadcrumb($conn, $current_folder_id, $current_user_id
 // Ordner holen
 $folders_sql = "SELECT id, name, created_at FROM folders WHERE user_id = ? AND deleted = 1";
 $folders_params = [$current_user_id]; $folders_types = "i";
-if ($current_folder_id !== null) {
-    $folders_sql .= " AND parent_id = ?";
-    $folders_params[] = $current_folder_id;
-    $folders_types .= "i";
+if (!empty($search_term)) {
+    $folders_sql .= " AND name LIKE ?";
+    $folders_params[] = '%' . $search_term . '%';
+    $folders_types .= "s";
 } else {
-    // Im Root zeigen wir gelöschte Ordner, deren Parent nicht gelöscht ist, 
-    // oder die keinen Parent haben (oder deren Parent NULL ist).
-    // Dies sind die "Einstiegspunkte" in den Papierkorb.
-    $folders_sql .= " AND (parent_id IS NULL OR parent_id NOT IN (SELECT id FROM folders WHERE deleted = 1))";
+    if ($current_folder_id !== null) {
+        $folders_sql .= " AND parent_id = ?";
+        $folders_params[] = $current_folder_id;
+        $folders_types .= "i";
+    } else {
+        $folders_sql .= " AND (parent_id IS NULL OR parent_id NOT IN (SELECT id FROM folders WHERE deleted = 1))";
+    }
 }
 $folders_sql .= " ORDER BY name ASC";
 $folders_stmt = $conn->prepare($folders_sql);
@@ -276,12 +279,19 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
 <h1>Papierkorb</h1>
 
 <!-- Breadcrumb -->
+<?php if (empty($search_term)): ?>
 <div class="breadcrumb">
     <a href="own_deleted_files" class="breadcrumb-link" data-target-folder="">Papierkorb Start</a>
     <?php foreach ($breadcrumb as $crumb): ?>
         / <a href="own_deleted_files?folder=<?php echo $crumb['id']; ?>" class="breadcrumb-link" data-target-folder="<?php echo $crumb['id']; ?>"><?php echo htmlspecialchars($crumb['name']); ?></a>
     <?php endforeach; ?>
 </div>
+<?php else: ?>
+<div class="breadcrumb">
+    <a href="own_deleted_files" class="breadcrumb-link">Papierkorb Start</a>
+    / Suchergebnisse für "<?php echo htmlspecialchars($search_term); ?>"
+</div>
+<?php endif; ?>
 
 <div class="card">
     <form method="GET" action="own_deleted_files" class="search-form-inline" style="margin-bottom: 20px;">
@@ -301,9 +311,10 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                         <a href="own_deleted_files?folder=<?php echo $folder['id']; ?>" class="folder-link" data-folder-id="<?php echo $folder['id']; ?>"><?php echo htmlspecialchars($folder['name']); ?></a>
                     </td>
                     <td><?php echo format_date_lang($folder['created_at']); ?></td>
-                    <td>-</td>
+                    <td><?php echo format_bytes(get_folder_size($conn, $folder['id'], true)); ?></td>
                     <td>-</td>
                     <td class="actions-cell">
+                        <?php if ($current_folder_id === null): ?>
                         <form method="post" action="own_deleted_files?search=<?php echo urlencode($search_term); ?>&folder=<?php echo $current_folder_id ?: ''; ?>" class="ajax-action" style="display:inline;">
                             <input type="hidden" name="ajax" value="1">
                             <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
@@ -318,6 +329,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                             <input type="hidden" name="delete_folder_permanently" value="1">
                             <button type="submit" name="delete_folder_permanently" class="action-button delete-button" title="Endgültig löschen">🗑️</button>
                         </form>
+                        <?php endif; ?>
                     </td>
                 </tr>
              <?php endforeach; ?>
@@ -328,6 +340,7 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                  <td><?php echo format_date_lang($file['created_at']); ?></td><td><?php echo format_bytes($file['size']); ?></td>
                  <td><span class="status-label <?php echo $file['public'] ? 'status-public' : 'status-private'; ?>"><?php echo $file['public'] ? 'Öffentlich' : 'Privat'; ?></span></td>
                  <td class="actions-cell"> <a href="view_file?id=<?php echo $file['id']; ?>" class="action-button view-button" title="Ansehen">👁️</a>
+                     <?php if ($current_folder_id === null): ?>
                      <form method="post" action="own_deleted_files?search=<?php echo urlencode($search_term); ?>&folder=<?php echo $current_folder_id ?: ''; ?>" class="ajax-action" style="display:inline;">
                         <input type="hidden" name="ajax" value="1">
                         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
@@ -342,7 +355,8 @@ require_once __DIR__ . '/../includes/header.php'; // Header erst jetzt!
                         <input type="hidden" name="delete_permanently" value="1">
                         <button type="submit" name="delete_permanently" class="action-button delete-button" title="Endgültig löschen">🗑️</button>
                     </form>
-                </td>
+                     <?php endif; ?>
+                 </td>
              </tr>
              <?php }} ?>
         </tbody>
