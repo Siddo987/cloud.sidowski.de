@@ -172,8 +172,10 @@ function generate_webauthn_auth_challenge($user_id) {
         ];
     }
     
+    $config = get_webauthn_config();
     return [
         'challenge' => $challenge,
+        'rpId' => $config['rp_id'],
         'allowCredentials' => $allowCredentials,
         'userVerification' => 'preferred',
         'timeout' => 60000
@@ -191,8 +193,10 @@ function generate_webauthn_discoverable_challenge() {
     // Speichere Challenge mit user_id = 0
     create_webauthn_challenge($conn, 0, $challenge, 'authentication');
     
+    $config = get_webauthn_config();
     return [
         'challenge' => $challenge,
+        'rpId' => $config['rp_id'],
         'allowCredentials' => [], // Empty array for discoverable credentials
         'userVerification' => 'required',
         'timeout' => 60000
